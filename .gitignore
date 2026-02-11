@@ -1,4 +1,1 @@
-.github
-.venv 
-.agents
-.agent 
+.*
