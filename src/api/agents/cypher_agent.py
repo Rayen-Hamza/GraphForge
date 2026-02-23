@@ -1,7 +1,4 @@
 from google.adk.agents import Agent
-
-
-
 from .variants import variants
 
 AGENT_NAME = "cypher_agent_v1"
