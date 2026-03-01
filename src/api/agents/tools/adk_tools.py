@@ -1,6 +1,6 @@
 from google.adk.tools import ToolContext
 
-def finished(tool_context: ToolContext):
+def finished(tool_context: ToolContext)-> dict:
     """Finishes the current agent collaboration, delegating back to a parent.
     """
     tool_context.actions.escalate = True
