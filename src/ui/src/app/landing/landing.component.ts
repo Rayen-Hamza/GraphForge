@@ -3,21 +3,29 @@ import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 import { NavbarComponent } from '../shared/navbar/navbar.component';
+import { Particles } from '../particles/particles';
 
 @Component({
   selector: 'app-landing',
   standalone: true,
-  imports: [CommonModule, RouterModule, MatIconModule, NavbarComponent],
+  imports: [CommonModule, RouterModule, MatIconModule, NavbarComponent, Particles],
   template: `
     <app-navbar></app-navbar>
 
     <!-- ═══ HERO SECTION ═══ -->
     <section class="hero">
       <div class="hero-bg">
-        <div class="gradient-orb orb-1"></div>
-        <div class="gradient-orb orb-2"></div>
-        <div class="gradient-orb orb-3"></div>
-        <div class="grain-overlay"></div>
+        <app-particles
+          [particleColors]="['#8B9D83', '#4A5D4F', '#D4DDD0', '#5A6B5E']"
+          [particleCount]="150"
+          [particleSpread]="15"
+          [speed]="0.08"
+          [particleBaseSize]="300"
+          [moveParticlesOnHover]="true"
+          [alphaParticles]="true"
+          [disableRotation]="false"
+          [pixelRatio]="1"
+        />
       </div>
 
       <div class="hero-content">
@@ -332,28 +340,12 @@ import { NavbarComponent } from '../shared/navbar/navbar.component';
       z-index: 0;
       overflow: hidden;
     }
-    .gradient-orb {
+    .hero-bg app-particles {
       position: absolute;
-      border-radius: 50%;
-      filter: blur(80px);
-    }
-    .orb-1 {
-      width: 600px; height: 600px;
-      background: radial-gradient(circle, rgba(139, 157, 131, 0.25) 0%, transparent 70%);
-      top: -10%; left: -5%;
-      animation: float 8s ease-in-out infinite;
-    }
-    .orb-2 {
-      width: 500px; height: 500px;
-      background: radial-gradient(circle, rgba(212, 221, 208, 0.35) 0%, transparent 70%);
-      top: 20%; right: -10%;
-      animation: float 10s ease-in-out infinite reverse;
-    }
-    .orb-3 {
-      width: 400px; height: 400px;
-      background: radial-gradient(circle, rgba(232, 115, 74, 0.08) 0%, transparent 70%);
-      bottom: 10%; left: 30%;
-      animation: float 12s ease-in-out infinite;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
     }
     .grain-overlay {
       position: absolute;
@@ -368,6 +360,7 @@ import { NavbarComponent } from '../shared/navbar/navbar.component';
       text-align: center;
       max-width: 740px;
       animation: fadeInUp 0.8s ease both;
+      pointer-events: none;
     }
 
     .hero-badge {
@@ -419,6 +412,7 @@ import { NavbarComponent } from '../shared/navbar/navbar.component';
       justify-content: center;
       gap: 16px;
       margin-bottom: 64px;
+      pointer-events: auto;
     }
     .btn-primary {
       display: inline-flex;
@@ -435,6 +429,7 @@ import { NavbarComponent } from '../shared/navbar/navbar.component';
       transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
       text-decoration: none;
       box-shadow: 0 4px 14px rgba(232, 115, 74, 0.3);
+      pointer-events: auto;
     }
     .btn-primary:hover {
       background: var(--accent-orange-hover);
@@ -458,6 +453,7 @@ import { NavbarComponent } from '../shared/navbar/navbar.component';
       cursor: pointer;
       transition: all 0.3s ease;
       text-decoration: none;
+      pointer-events: auto;
     }
     .btn-secondary:hover {
       border-color: var(--text-primary);
@@ -502,6 +498,7 @@ import { NavbarComponent } from '../shared/navbar/navbar.component';
       max-width: 680px;
       margin-top: 60px;
       animation: fadeInUp 0.8s ease 0.3s both;
+      pointer-events: auto;
     }
     .preview-card {
       background: rgba(255, 255, 255, 0.85);
