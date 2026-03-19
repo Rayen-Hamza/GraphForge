@@ -4,16 +4,16 @@
 This module defines functions that return instruction prompts for the cypher agent.
 These instructions guide the agent's behavior, workflow, and tool usage.
 """
-from agentic_kg.tools.cypher_tools import (
-    neo4j_is_ready, 
-    get_physical_schema, 
+from ..tools.cypher_tools import (
+    neo4j_is_ready,
+    get_physical_schema,
     read_neo4j_cypher,
     write_neo4j_cypher,
     reset_neo4j_data,
     create_uniqueness_constraint,
     merge_node_into_graph
 )
-from agentic_kg.tools.adk_tools import finished
+from ..tools.adk_tools import finished
 
 variants = {
 

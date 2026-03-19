@@ -1,6 +1,6 @@
 from google.adk.agents import Agent
 
-from agentic_kg.common.llm_catalog import get_llm
+from ..common.llm_catalog import get_llm, LlmKind
 
 from .variants import variants
 
