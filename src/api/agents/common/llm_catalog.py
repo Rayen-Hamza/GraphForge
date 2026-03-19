@@ -1,33 +1,21 @@
 from enum import Enum
-
 import logging
+import os
 
 from google.adk.models.lite_llm import LiteLlm
-import litellm
 
 from .config import get_settings
 
 logger = logging.getLogger(__name__)
 
-litellm.log_raw_request_response = False
-litellm.suppress_debug_info = True
-litellm.turn_off_message_logging=True
-litellm.logging = False
-litellm._logging._disable_debugging()
+# Native ADK Gemini model names (no litellm prefix)
+MODEL_GEMINI_2_0_FLASH = "gemini-2.5-flash"
+MODEL_GEMINI_1_5_PRO = "gemini-2.5-flash"
 
-MODEL_GEMINI_2_0_FLASH = "gemini/gemini-2.0-flash"
+# LiteLlm model names for other providers
 MODEL_GPT_4O = "openai/gpt-4o"
-MODEL_CLAUDE_SONNET = "anthropic/claude-3-sonnet-20240229"
-MODEL_OPENAI_CHAT = "openai/gpt-4o"
 MODEL_GPT_4O_MINI = "openai/gpt-4o-mini"
-MODEL_GPT_5_MINI = "openai/gpt-5-mini"
-
-LM_STUDIO_QWEN = "hosted_vllm/qwen2.5-7b-instruct"
-LM_STUDIO_GPT_OSS = "hosted_vllm/openai/gpt-oss-20b"
-LM_STUDIO_BASE_URL = "http://localhost:1234/v1"
-
-OLLAMA_MODEL = "openai/qwen3:4b"
-OLLAMA_BASE_URL = "http://localhost:11434/v1"
+MODEL_CLAUDE_SONNET = "anthropic/claude-3-sonnet-20240229"
 
 
 class LlmKind(str, Enum):
@@ -35,25 +23,29 @@ class LlmKind(str, Enum):
     conversational = 'conversational'
 
 
-_llm_instance: LiteLlm | None = None
+_llm_cache: dict[LlmKind, LiteLlm | str] = {}
 
 
-def get_llm(kind: LlmKind = LlmKind.reasoning) -> LiteLlm:
-    """Lazily construct and return a kind of LiteLlm instance.
+def get_llm(kind: LlmKind = LlmKind.reasoning) -> LiteLlm | str:
+    """Return the appropriate LLM for the configured provider.
 
-    Args:
-        kind: The kind of LiteLlm to construct.
+    If GEMINI_API_KEY is set, returns a native ADK model name string so the
+    ADK uses google-genai directly (faster, no LiteLlm overhead).
+    Otherwise falls back to a LiteLlm instance.
     """
-    global _llm_instance
-    if _llm_instance is None:
-        settings = get_settings()
-        logger.info(f"llm_model: {settings.llm_model}")
-        _llm_instance = LiteLlm(
-            model=MODEL_GPT_4O_MINI,
-            # api_base=OLLAMA_BASE_URL,
-        )
-        # _llm_instance = LiteLlm(
-        #     model=LM_STUDIO_GPT_OSS,
-        #     api_base=LM_STUDIO_BASE_URL,
-        # )
-    return _llm_instance
+    if kind in _llm_cache:
+        return _llm_cache[kind]
+
+    settings = get_settings()
+
+    if settings.gemini_api_key:
+        os.environ["GOOGLE_API_KEY"] = settings.gemini_api_key
+        model = MODEL_GEMINI_1_5_PRO if kind == LlmKind.reasoning else MODEL_GEMINI_2_0_FLASH
+        logger.info(f"Using native ADK Gemini model: {model}")
+        _llm_cache[kind] = model
+    else:
+        model = settings.llm_model or MODEL_GPT_4O_MINI
+        logger.info(f"Using LiteLlm model: {model}")
+        _llm_cache[kind] = LiteLlm(model=model)
+
+    return _llm_cache[kind]

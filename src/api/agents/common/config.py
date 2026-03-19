@@ -1,11 +1,10 @@
 import logging
 from typing import Optional
 from pydantic import Field
+from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
-import logging
-from typing import Optional
-from pydantic import Field
-from pydantic_settings import BaseSettings, SettingsConfigDict
+
+_ENV_FILE = Path(__file__).parent.parent.parent / ".env"  # src/api/.env
 
 
 class agentic_kgSettings(BaseSettings):
@@ -25,10 +24,10 @@ class agentic_kgSettings(BaseSettings):
     llm_base_url: Optional[str] = Field(default=None)
 
     # Neo4j configuration
-    neo4j_dsn: Optional[Neo4jDsn] = Field(default="bolt://localhost:7687")
+    neo4j_dsn: Optional[str] = Field(default="bolt://localhost:7687")
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=str(_ENV_FILE),
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",

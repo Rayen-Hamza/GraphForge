@@ -1,11 +1,16 @@
 [project]
 name = "graphforge"
 version = "0.1.0"
-description = "Add your description here"
+description = "Agentic knowledge graph construction and retrieval"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    "dotenv>=0.9.9",
-    "google-adk>=1.24.1",
+    "fastapi>=0.111.0",
+    "uvicorn[standard]>=0.29.0",
+    "python-dotenv>=1.0.0",
+    "pydantic-settings>=2.0.0",
+    "google-adk[extensions]>=1.24.1",
     "neo4j>=6.1.0",
+    "neo4j-graphrag>=1.0.0",
+    "clevercsv>=0.8.0",
 ]
