@@ -9,8 +9,8 @@ from .config import get_settings
 logger = logging.getLogger(__name__)
 
 # Native ADK Gemini model names (no litellm prefix)
-MODEL_GEMINI_2_0_FLASH = "gemini-2.5-flash"
-MODEL_GEMINI_1_5_PRO = "gemini-2.5-flash"
+MODEL_GEMINI_2_0_FLASH = "gemini-3.1-flash-lite-preview"
+MODEL_GEMINI_1_5_PRO = "gemini-3.1-flash-lite-preview"
 
 # LiteLlm model names for other providers
 MODEL_GPT_4O = "openai/gpt-4o"
