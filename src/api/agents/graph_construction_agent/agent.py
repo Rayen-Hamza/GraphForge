@@ -1,8 +1,8 @@
 from google.adk.agents import Agent
 
-from ..common.llm_catalog import get_llm
+from agents.common.llm_catalog import get_llm
 
-from .variants import variants
+from agents.graph_construction_agent.variants import variants
 
 AGENT_NAME = "graph_construction_agent_v1"
 graph_construction_agent = Agent(

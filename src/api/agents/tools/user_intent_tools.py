@@ -2,10 +2,10 @@
 # TODO: experimenting with different tools for user intent that are broader that user goal
 from google.adk.tools import ToolContext
 
-from ..domain.user_intent import UserIntent, create_user_intent, validate_user_intent
+from agents.domain.user_intent import UserIntent, create_user_intent, validate_user_intent
 
-from .toolset import ToolSet
-from ..common.tool_result import tool_success, tool_error
+from agents.tools.toolset import ToolSet
+from agents.common.tool_result import tool_success, tool_error
 
 USER_INTENT_KEY = "user_intent_specification"
 

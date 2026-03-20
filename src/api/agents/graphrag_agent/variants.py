@@ -1,10 +1,10 @@
 """Module for storing and retrieving agent instructions for the graphrag_agent."""
 
-from ..tools.cypher_tools import (
+from agents.tools.cypher_tools import (
     get_physical_schema,
     read_neo4j_cypher,
 )
-from ..tools.adk_tools import finished
+from agents.tools.adk_tools import finished
 
 variants = {
     "graphrag_agent_v1": {

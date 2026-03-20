@@ -1,6 +1,6 @@
 from google.adk.agents import Agent
-from ..common.llm_catalog import get_llm
-from .variants import variants
+from agents.common.llm_catalog import get_llm
+from agents.cypher_agent.variants import variants
 
 AGENT_NAME = "cypher_agent_v1"
 cypher_agent = Agent(

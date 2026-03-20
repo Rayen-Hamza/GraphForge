@@ -1,8 +1,8 @@
 from google.adk.agents import Agent
 
-from ..common.llm_catalog import get_llm
+from agents.common.llm_catalog import get_llm
 
-from .variants import variants
+from agents.user_intent_agent.variants import variants
 
 AGENT_NAME = "user_intent_agent_v2"
 user_intent_agent = Agent(

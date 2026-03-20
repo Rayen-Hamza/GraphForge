@@ -1,6 +1,6 @@
 from typing import List, Optional
-from ...repositories.item_repo import ItemRepository
-from ...schemas.item import ItemCreate, Item
+from repositories.item_repo import ItemRepository
+from schemas.item import ItemCreate, Item
 
 
 class ItemService:

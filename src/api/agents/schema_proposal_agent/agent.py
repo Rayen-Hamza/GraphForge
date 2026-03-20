@@ -7,14 +7,14 @@ from google.adk.tools import agent_tool
 from typing import AsyncGenerator
 from google.adk.events import Event, EventActions
 
-from ..common.llm_catalog import get_llm
-from ..tools.construction_plan_tools import (
+from agents.common.llm_catalog import get_llm
+from agents.tools.construction_plan_tools import (
     get_proposed_construction_plan,
     approve_proposed_construction_plan,
 )
-from ..tools.adk_tools import finished
+from agents.tools.adk_tools import finished
 
-from .variants import variants
+from agents.schema_proposal_agent.variants import variants
 
 # initialize context for schema_proposal_agent with blank feedback
 def initialize_feedback(callback_context: CallbackContext) -> None:

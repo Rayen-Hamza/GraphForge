@@ -5,7 +5,7 @@ from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from google.genai import types
 
-from ..agents.multi_agent.agent import full_workflow_agent
+from agents.multi_agent.agent import full_workflow_agent
 
 logger = logging.getLogger(__name__)
 

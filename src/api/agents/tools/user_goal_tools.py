@@ -1,7 +1,7 @@
 from google.adk.tools import ToolContext
 
-from ...infra.neo4j import get_graphdb
-from ..common.tool_result import tool_success, tool_error
+from infra.neo4j import get_graphdb
+from agents.common.tool_result import tool_success, tool_error
 
 graphdb = get_graphdb()
 

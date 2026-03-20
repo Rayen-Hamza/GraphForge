@@ -9,9 +9,9 @@ from neo4j import (
     Result,
 )
 
-from ..agents.common.config import get_settings
-from .pydantic_neo4j import Neo4jConfig
-from ..agents.common.tool_result import tool_success, tool_error
+from agents.common.config import get_settings
+from infra.pydantic_neo4j import Neo4jConfig
+from agents.common.tool_result import tool_success, tool_error
 
 logger = logging.getLogger(__name__)
 

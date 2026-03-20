@@ -1,18 +1,18 @@
 """Module for storing and retrieving agent instructions for the graph_construction_agent."""
 
-from ..tools.user_goal_tools import (
+from agents.tools.user_goal_tools import (
     get_user_goal, get_approved_user_goal,
 )
-from ..tools.construction_plan_tools import (
+from agents.tools.construction_plan_tools import (
     get_approved_construction_plan,
 )
-from ..tools.cypher_tools import (
+from agents.tools.cypher_tools import (
     read_neo4j_cypher, write_neo4j_cypher, create_uniqueness_constraint,
     get_physical_schema,
 )
-from ..tools.file_tools import get_approved_files
-from ..tools.kg_construction_tools import build_graph_from_construction_rules
-from ..tools.adk_tools import finished
+from agents.tools.file_tools import get_approved_files
+from agents.tools.kg_construction_tools import build_graph_from_construction_rules
+from agents.tools.adk_tools import finished
 
 variants = {
     "graph_construction_agent_v1": {

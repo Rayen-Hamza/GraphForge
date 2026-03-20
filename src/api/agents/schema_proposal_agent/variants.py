@@ -1,19 +1,19 @@
 """Module for storing and retrieving agent instructions for the schema_proposal_agent."""
 
-from ..tools.user_goal_tools import (
+from agents.tools.user_goal_tools import (
     get_user_goal,
     get_approved_user_goal
 )
-from ..tools.file_tools import (
+from agents.tools.file_tools import (
     get_approved_files, sample_file, search_file,
 )
-from ..tools.construction_plan_tools import (
+from agents.tools.construction_plan_tools import (
     propose_node_construction, propose_relationship_construction,
     remove_node_construction, remove_relationship_construction,
     get_proposed_construction_plan,
 )
 
-from ..tools.adk_tools import finished
+from agents.tools.adk_tools import finished
 
 variants = {
     "schema_proposal_agent_v1":

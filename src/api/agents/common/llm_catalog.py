@@ -4,7 +4,7 @@ import os
 
 from google.adk.models.lite_llm import LiteLlm
 
-from .config import get_settings
+from agents.common.config import get_settings
 
 logger = logging.getLogger(__name__)
 

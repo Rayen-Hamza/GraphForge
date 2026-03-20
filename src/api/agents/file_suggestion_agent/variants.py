@@ -4,12 +4,12 @@
 These instructions guide the agent's behavior, workflow, and tool usage.
 """
 
-from ..tools.user_goal_tools import get_approved_user_goal
-from ..tools.file_tools import (
+from agents.tools.user_goal_tools import get_approved_user_goal
+from agents.tools.file_tools import (
     list_import_files, sample_file, search_file,
     set_suggested_files, approve_suggested_files, get_suggested_files
 )
-from ..tools.adk_tools import finished
+from agents.tools.adk_tools import finished
 
 
 variants = {

@@ -1,13 +1,13 @@
 from google.adk.agents import LlmAgent
 
-from ..common.llm_catalog import get_llm
-from ..tools.cypher_tools import get_physical_schema, get_neo4j_import_dir, neo4j_is_ready
+from agents.common.llm_catalog import get_llm
+from agents.tools.cypher_tools import get_physical_schema, get_neo4j_import_dir, neo4j_is_ready
 
-from ..user_intent_agent.agent import user_intent_agent
-from ..file_suggestion_agent.agent import file_suggestion_agent
-from ..schema_proposal_agent.agent import root_agent as schema_proposal_agent
-from ..graph_construction_agent.agent import graph_construction_agent
-from ..graphrag_agent.agent import graphrag_agent
+from agents.user_intent_agent.agent import user_intent_agent
+from agents.file_suggestion_agent.agent import file_suggestion_agent
+from agents.schema_proposal_agent.agent import root_agent as schema_proposal_agent
+from agents.graph_construction_agent.agent import graph_construction_agent
+from agents.graphrag_agent.agent import graphrag_agent
 
 
 full_workflow_agent = LlmAgent(

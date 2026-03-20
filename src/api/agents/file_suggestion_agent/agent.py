@@ -1,8 +1,8 @@
 from google.adk.agents import Agent
 
-from ..common.llm_catalog import get_llm, LlmKind
+from agents.common.llm_catalog import get_llm, LlmKind
 
-from .variants import variants
+from agents.file_suggestion_agent.variants import variants
 
 AGENT_NAME = "file_suggestion_agent_v3"
 

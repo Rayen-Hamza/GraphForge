@@ -1,10 +1,10 @@
 """Module for storing and retrieving agent instructions for the user_intent_agent."""
 
-from ..tools.user_goal_tools import (
+from agents.tools.user_goal_tools import (
     set_user_goal, get_user_goal,
     set_perceived_user_goal, approve_perceived_user_goal
 )
-from ..tools.adk_tools import finished
+from agents.tools.adk_tools import finished
 
 
 variants = {

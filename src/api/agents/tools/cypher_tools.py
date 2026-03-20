@@ -4,8 +4,8 @@ from google.adk.tools import ToolContext
 
 from neo4j_graphrag.schema import get_structured_schema
 
-from ...infra.neo4j import get_graphdb, is_write_query, close_graphdb
-from ..common.tool_result import tool_success, tool_error
+from infra.neo4j import get_graphdb, is_write_query, close_graphdb
+from agents.common.tool_result import tool_success, tool_error
 
 graphdb = get_graphdb()
 
@@ -134,7 +134,7 @@ def create_uniqueness_constraint(
     Returns:
         A dictionary with a status key ('success' or 'error').
     """
-    from ...infra.neo4j import is_symbol
+    from infra.neo4j import is_symbol
 
     if not is_symbol(label):
         return tool_error(f"Invalid label: '{label}'. Labels cannot contain spaces or be Cypher keywords.")
