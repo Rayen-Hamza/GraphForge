@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.routing import APIRouter
 
+from core.telemetry import setup_tracing
 from routers.chat import router as chat_router
 
 root_router = APIRouter()
@@ -13,6 +14,8 @@ async def root():
 
 
 def create_app() -> FastAPI:
+    setup_tracing()
+
     app = FastAPI(
         title="GraphForge API",
         description="Agentic knowledge graph construction and retrieval API",
