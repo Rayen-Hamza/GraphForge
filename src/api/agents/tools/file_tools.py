@@ -13,6 +13,25 @@ from .cypher_tools import get_neo4j_import_dir
 
 logger = logging.getLogger(__name__)
 
+# Fallback data directory: project root / data/
+_FALLBACK_DATA_DIR = Path(__file__).parent.parent.parent.parent.parent / "data"
+
+
+def _get_import_dir() -> tuple[Path | None, dict | None]:
+    """Returns (import_dir, None) on success, or (None, error_dict) on failure.
+    Tries Neo4j import dir first; falls back to the project data/ directory."""
+    result = get_neo4j_import_dir()
+    if result["status"] == "success":
+        return Path(result["neo4j_import_dir"]), None
+    # Fallback: use project data/ directory
+    if _FALLBACK_DATA_DIR.exists():
+        logger.info(f"Neo4j import dir unavailable (Aura?); using fallback: {_FALLBACK_DATA_DIR}")
+        return _FALLBACK_DATA_DIR, None
+    return None, tool_error(
+        f"Neo4j import dir not available ({result.get('error_message', '')}) "
+        f"and fallback data dir not found at {_FALLBACK_DATA_DIR}"
+    )
+
 ALL_AVAILABLE_FILES = "all_available_files"
 SUGGESTED_FILES = "suggested_file_list"
 APPROVED_FILES = "approved_file_list"
@@ -27,11 +46,9 @@ def list_import_files(tool_context: ToolContext) -> dict:
                 If 'success', includes a {ALL_AVAILABLE_FILES} key with list of file names.
                 If 'error', includes an 'error_message' key.
     """
-    result = get_neo4j_import_dir()
-
-    if result["status"] == "error":
-        return result
-    import_dir = Path(result["neo4j_import_dir"])
+    import_dir, error = _get_import_dir()
+    if error:
+        return error
 
     file_names = [str(x.relative_to(import_dir))
                  for x in import_dir.rglob("*")
@@ -82,9 +99,9 @@ def sample_file(file_path: str, tool_context: ToolContext) -> dict:
     Returns:
         dict: A dictionary containing metadata about the content.
     """
-    import_dir_result = get_neo4j_import_dir()
-    if import_dir_result["status"] == "error": return import_dir_result
-    import_dir = Path(import_dir_result["neo4j_import_dir"])
+    import_dir, error = _get_import_dir()
+    if error:
+        return error
     p = import_dir / file_path
 
     if not p.exists():
@@ -130,10 +147,9 @@ def search_csv_file(file_path: str, query: str, tool_context: ToolContext, case_
     Returns:
         dict: A dictionary with 'status' ('success' or 'error').
     """
-    import_dir_result = get_neo4j_import_dir()
-    if import_dir_result["status"] == "error":
-        return import_dir_result
-    import_dir = Path(import_dir_result["neo4j_import_dir"])
+    import_dir, error = _get_import_dir()
+    if error:
+        return error
     p = import_dir / file_path
 
     if not p.exists():
@@ -208,10 +224,9 @@ def search_file(file_path: str, query: str) -> dict:
     Returns:
         dict: A dictionary with 'status' ('success' or 'error').
     """
-    import_dir_result = get_neo4j_import_dir()
-    if import_dir_result["status"] == "error":
-        return import_dir_result
-    import_dir = Path(import_dir_result["neo4j_import_dir"])
+    import_dir, error = _get_import_dir()
+    if error:
+        return error
     p = import_dir / file_path
 
     if not p.exists():
@@ -279,11 +294,10 @@ async def import_markdown_file(source_file: str, label_name: str, tool_context: 
     if constraint_result["status"] == "error":
         return constraint_result
 
-    import_dir_result = get_neo4j_import_dir()
-    if import_dir_result["status"] == "error":
-        return import_dir_result
+    import_dir, error = _get_import_dir()
+    if error:
+        return error
 
-    import_dir = Path(import_dir_result["neo4j_import_dir"])
     file_path = import_dir / source_file
 
     if not file_path.exists():

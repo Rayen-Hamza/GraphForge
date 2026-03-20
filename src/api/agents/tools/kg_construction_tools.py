@@ -13,11 +13,21 @@ graphdb = get_graphdb()
 
 APPROVED_CONSTRUCTION_PLAN = "approved_construction_plan"
 
+def _build_csv_url(source_file_param: str) -> str:
+    """Return a Cypher expression for the CSV URL.
+    If source_file already starts with http/https, use it as-is; otherwise prepend file:///."""
+    return (
+        f"CASE WHEN {source_file_param} STARTS WITH 'http' "
+        f"THEN {source_file_param} "
+        f"ELSE 'file:///' + {source_file_param} END"
+    )
+
+
 def construct_node(construction_rule: dict) -> Dict[str, Any]:
     """Construct a node from the construction rule."""
-    batch_load_nodes_cypher = """
-    LOAD CSV WITH HEADERS FROM "file:///" + $import_file AS row
-    MERGE (n:$($label) {id: row[$unique_column_name]})
+    batch_load_nodes_cypher = f"""
+    LOAD CSV WITH HEADERS FROM {_build_csv_url('$import_file')} AS row
+    MERGE (n:$($label) {{id: row[$unique_column_name]}})
     SET n += row
     """
     return graphdb.send_query(batch_load_nodes_cypher, {
@@ -29,10 +39,10 @@ def construct_node(construction_rule: dict) -> Dict[str, Any]:
 
 def construct_relationship(construction_rule: dict) -> Dict[str, Any]:
     """Construct a relationship from the construction rule."""
-    batch_load_relationships_cypher = """
-    LOAD CSV WITH HEADERS FROM "file:///" + $import_file AS row
-    MATCH (from_node:$($from_node_label) {id: row[$from_node_column]})
-    MATCH (to_node:$($to_node_label) {id: row[$to_node_column]})
+    batch_load_relationships_cypher = f"""
+    LOAD CSV WITH HEADERS FROM {_build_csv_url('$import_file')} AS row
+    MATCH (from_node:$($from_node_label) {{id: row[$from_node_column]}})
+    MATCH (to_node:$($to_node_label) {{id: row[$to_node_column]}})
     MERGE (from_node)-[r:$($relationship_type)]->(to_node)
     SET r += row
     """
@@ -55,7 +65,7 @@ def load_nodes_from_csv(
 ) -> Dict[str, Any]:
     """Batch loading of nodes from a CSV file"""
 
-    query = f"""LOAD CSV WITH HEADERS FROM "file:///" + $source_file AS row
+    query = f"""LOAD CSV WITH HEADERS FROM {_build_csv_url('$source_file')} AS row
     CALL (row) {{
         MERGE (n:$($label) {{ {unique_column_name} : row[$unique_column_name] }})
         FOREACH (k IN $properties | SET n[k] = row[k])
@@ -97,7 +107,7 @@ def import_relationships(relationship_construction: dict) -> Dict[str, Any]:
 
     from_node_column = relationship_construction["from_node_column"]
     to_node_column = relationship_construction["to_node_column"]
-    query = f"""LOAD CSV WITH HEADERS FROM "file:///" + $source_file AS row
+    query = f"""LOAD CSV WITH HEADERS FROM {_build_csv_url('$source_file')} AS row
     CALL (row) {{
         MATCH (from_node:$($from_node_label) {{ {from_node_column} : row[$from_node_column] }}),
               (to_node:$($to_node_label) {{ {to_node_column} : row[$to_node_column] }} )
