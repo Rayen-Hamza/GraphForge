@@ -24,7 +24,7 @@ from ..schemas.agent import (
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/agents", tags=["agents"])
+router = APIRouter(prefix="/chat", tags=["chat"])
 
 
 @router.post("/sessions", response_model=CreateSessionResponse)
