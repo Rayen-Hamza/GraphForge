@@ -188,9 +188,16 @@ export class ChatService {
     }
 
     // ── Capture tool invocations (functionCall / function_call) ──
+    // ADK may emit the same call from both orchestrator and sub-agent — deduplicate.
     const functionCalls = event.content?.parts?.filter((p: any) => p.functionCall || p.function_call) ?? [];
     for (const part of functionCalls) {
       const fc = (part as any).functionCall ?? (part as any).function_call;
+      const currentMsg = this.messages().find((m) => m.id === msgId);
+      const alreadyTracked = (currentMsg?.toolInvocations ?? []).some(
+        (inv) => inv.name === fc.name && inv.status === 'calling',
+      );
+      if (alreadyTracked) continue;
+
       const invocation: ToolInvocation = {
         id: crypto.randomUUID(),
         agent: author,
