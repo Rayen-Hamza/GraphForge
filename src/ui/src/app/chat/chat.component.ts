@@ -154,37 +154,55 @@ import { MarkdownPipe } from '../shared/markdown.pipe';
                   <span class="msg-timestamp">{{ msg.timestamp }}</span>
                 </div>
 
-                <!-- ── Tool Invocations (real-time) ── -->
+                <!-- ── Tool Invocations Timeline ── -->
                 @if (msg.toolInvocations?.length) {
-                  <div class="tool-invocations-stream">
+                  <div class="tool-timeline">
                     @for (tool of msg.toolInvocations; track tool.id; let i = $index) {
-                      <div class="tool-pill" [class.tool-calling]="tool.status === 'calling'"
-                           [class.tool-success]="tool.status === 'success'"
-                           [class.tool-error]="tool.status === 'error'"
-                           [style.animation-delay]="(i * 50) + 'ms'">
-                        <div class="tool-status-indicator">
-                          @if (tool.status === 'calling') {
-                            <div class="tool-spinner"></div>
-                          } @else if (tool.status === 'success') {
-                            <svg class="tool-check" width="12" height="12" viewBox="0 0 14 14" fill="none">
-                              <path d="M3.5 7l2.5 2.5 4.5-4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                            </svg>
-                          } @else {
-                            <svg class="tool-error-icon" width="12" height="12" viewBox="0 0 14 14" fill="none">
-                              <path d="M4 4l6 6M10 4l-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-                            </svg>
-                          }
+                      <div class="tool-timeline-row"
+                           [class.tl-calling]="tool.status === 'calling'"
+                           [class.tl-success]="tool.status === 'success'"
+                           [class.tl-error]="tool.status === 'error'"
+                           [style.animation-delay]="(i * 80) + 'ms'">
+                        @if (i > 0) {
+                          <div class="tl-connector" [class.tl-connector-done]="tool.status !== 'calling'"></div>
+                        }
+                        <div class="tl-row-content">
+                          <div class="tl-node">
+                            @if (tool.status === 'calling') {
+                              <div class="tl-node-ring"></div>
+                              <div class="tl-node-core"></div>
+                            } @else if (tool.status === 'success') {
+                              <div class="tl-node-done">
+                                <svg width="10" height="10" viewBox="0 0 14 14" fill="none">
+                                  <path d="M3.5 7l2.5 2.5 4.5-4.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+                                </svg>
+                              </div>
+                            } @else {
+                              <div class="tl-node-error">
+                                <svg width="10" height="10" viewBox="0 0 14 14" fill="none">
+                                  <path d="M4.5 4.5l5 5M9.5 4.5l-5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                                </svg>
+                              </div>
+                            }
+                          </div>
+                          <div class="tl-info">
+                            <span class="tl-name">{{ tool.name }}</span>
+                            @if (tool.endTime && tool.startTime) {
+                              <span class="tl-duration">{{ ((tool.endTime - tool.startTime) / 1000).toFixed(1) }}s</span>
+                            }
+                          </div>
                         </div>
-                        <span class="tool-name">{{ tool.name }}</span>
-                        @if (tool.endTime && tool.startTime) {
-                          <span class="tool-duration">{{ ((tool.endTime - tool.startTime) / 1000).toFixed(1) }}s</span>
+                        @if (tool.status === 'calling') {
+                          <div class="tl-shimmer"></div>
                         }
                       </div>
                     }
                   </div>
                 }
 
-                <div class="msg-content-text markdown-body" [class.streaming-cursor]="msg.isStreaming"
+                <div class="msg-content-text markdown-body"
+                     [class.streaming-cursor]="msg.isStreaming"
+                     [class.streaming-text]="msg.isStreaming && msg.content"
                      [innerHTML]="msg.content | markdown"></div>
 
                 @if (msg.agentSteps && !msg.isStreaming) {
@@ -748,79 +766,146 @@ import { MarkdownPipe } from '../shared/markdown.pipe';
       flex-shrink: 0;
     }
 
-    /* ═══ Tool Invocation Pills ═══ */
-    .tool-invocations-stream {
+    /* ═══ Tool Timeline ═══ */
+    .tool-timeline {
       display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-      margin: 8px 0;
+      flex-direction: column;
+      margin: 10px 0;
+      padding-left: 2px;
     }
 
-    .tool-pill {
-      display: inline-flex;
+    .tool-timeline-row {
+      position: relative;
+      animation: tlRowIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+    }
+
+    .tl-connector {
+      width: 2px;
+      height: 10px;
+      margin-left: 9px;
+      background: var(--border-medium);
+      border-radius: 1px;
+      transition: background 0.4s ease;
+    }
+    .tl-connector-done {
+      background: var(--accent-success);
+    }
+
+    .tl-row-content {
+      display: flex;
       align-items: center;
-      gap: 6px;
-      padding: 4px 10px;
-      border-radius: var(--radius-full);
-      font-size: 12px;
-      animation: toolSlideIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
-      transition: background 0.3s, border-color 0.3s;
-      border: 1px solid var(--border-light);
-      background: var(--bg-surface);
-    }
-    .tool-pill.tool-calling {
-      border-color: rgba(232, 115, 74, 0.3);
-      background: rgba(232, 115, 74, 0.05);
-    }
-    .tool-pill.tool-success {
-      border-color: rgba(61, 139, 86, 0.2);
-      background: rgba(61, 139, 86, 0.04);
-    }
-    .tool-pill.tool-error {
-      border-color: rgba(201, 74, 74, 0.25);
-      background: rgba(201, 74, 74, 0.04);
+      gap: 10px;
+      padding: 4px 8px 4px 0;
+      position: relative;
+      z-index: 1;
+      border-radius: var(--radius-sm);
     }
 
-    .tool-status-indicator {
-      width: 14px;
-      height: 14px;
+    /* ── Status Nodes ── */
+    .tl-node {
+      width: 20px;
+      height: 20px;
+      position: relative;
       display: flex;
       align-items: center;
       justify-content: center;
       flex-shrink: 0;
     }
-    .tool-spinner {
-      width: 12px;
-      height: 12px;
-      border: 1.5px solid rgba(232, 115, 74, 0.2);
+
+    .tl-node-ring {
+      position: absolute;
+      inset: 0;
+      border: 2px solid rgba(232, 115, 74, 0.2);
       border-top-color: var(--accent-orange);
       border-radius: 50%;
-      animation: spin 0.7s linear infinite;
+      animation: spin 0.8s linear infinite;
     }
-    .tool-check {
-      color: var(--accent-success);
-      animation: checkPop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) both;
-    }
-    .tool-error-icon {
-      color: var(--accent-error);
+    .tl-node-core {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--accent-orange);
+      animation: tlCorePulse 1.5s ease-in-out infinite;
     }
 
-    .tool-name {
-      font-size: 11.5px;
+    .tl-node-done {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: var(--accent-success);
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      animation: tlNodePop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+    }
+
+    .tl-node-error {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: var(--accent-error);
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      animation: tlNodePop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+    }
+
+    /* ── Tool Info ── */
+    .tl-info {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex: 1;
+      min-width: 0;
+    }
+
+    .tl-name {
+      font-size: 12px;
       font-weight: 500;
       font-family: var(--font-mono);
       color: var(--text-secondary);
       white-space: nowrap;
-    }
-    .tool-pill.tool-calling .tool-name {
-      color: var(--accent-orange);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      transition: color 0.3s, text-shadow 0.3s;
     }
 
-    .tool-duration {
+    .tl-calling .tl-name {
+      color: var(--accent-orange);
+      text-shadow: 0 0 8px rgba(232, 115, 74, 0.3);
+    }
+
+    .tl-success .tl-name {
+      color: var(--text-primary);
+    }
+
+    .tl-duration {
       font-size: 10px;
       font-family: var(--font-mono);
       color: var(--text-tertiary);
       flex-shrink: 0;
+      animation: fadeIn 0.3s ease both;
+    }
+
+    /* ── Shimmer behind calling row ── */
+    .tl-shimmer {
+      position: absolute;
+      inset: 0;
+      border-radius: var(--radius-sm);
+      background: linear-gradient(
+        90deg,
+        transparent,
+        rgba(232, 115, 74, 0.06) 30%,
+        rgba(232, 115, 74, 0.10) 50%,
+        rgba(232, 115, 74, 0.06) 70%,
+        transparent
+      );
+      background-size: 200% 100%;
+      animation: shimmerBar 2s linear infinite;
+      z-index: 0;
+      pointer-events: none;
     }
 
     /* ── Agent Steps Summary (collapsed after streaming) ── */
@@ -982,6 +1067,31 @@ import { MarkdownPipe } from '../shared/markdown.pipe';
         opacity: 0.4;
         box-shadow: 0 0 4px rgba(232, 115, 74, 0.2), 0 0 8px rgba(232, 115, 74, 0.1);
       }
+    }
+
+    /* ── Streaming text fade-in mask ── */
+    .msg-content-text.streaming-text {
+      -webkit-mask-image: linear-gradient(
+        to bottom,
+        black 0%,
+        black calc(100% - 2.8em),
+        rgba(0, 0, 0, 0.45) calc(100% - 1em),
+        rgba(0, 0, 0, 0.15) 100%
+      );
+      mask-image: linear-gradient(
+        to bottom,
+        black 0%,
+        black calc(100% - 2.8em),
+        rgba(0, 0, 0, 0.45) calc(100% - 1em),
+        rgba(0, 0, 0, 0.15) 100%
+      );
+      animation: textFadeIn 0.4s ease both;
+    }
+
+    .msg-content-text:not(.streaming-text) {
+      -webkit-mask-image: none;
+      mask-image: none;
+      transition: opacity 0.3s ease;
     }
 
     /* Graph Stats Inline */
@@ -1522,6 +1632,55 @@ import { MarkdownPipe } from '../shared/markdown.pipe';
       to {
         opacity: 1;
         transform: translateX(0);
+      }
+    }
+
+    @keyframes tlRowIn {
+      from {
+        opacity: 0;
+        transform: translateY(-6px) scale(0.97);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+
+    @keyframes tlCorePulse {
+      0%, 100% {
+        opacity: 1;
+        transform: scale(1);
+        box-shadow: 0 0 0 0 rgba(232, 115, 74, 0.4);
+      }
+      50% {
+        opacity: 0.7;
+        transform: scale(1.2);
+        box-shadow: 0 0 0 4px rgba(232, 115, 74, 0);
+      }
+    }
+
+    @keyframes tlNodePop {
+      from {
+        opacity: 0;
+        transform: scale(0.4);
+      }
+      60% {
+        transform: scale(1.15);
+      }
+      to {
+        opacity: 1;
+        transform: scale(1);
+      }
+    }
+
+    @keyframes textFadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(4px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
       }
     }
 
