@@ -1,4 +1,6 @@
+import csv
 import logging
+from pathlib import Path
 
 from google.adk.tools import ToolContext
 from typing import Dict, Any, List
@@ -13,48 +15,43 @@ graphdb = get_graphdb()
 
 APPROVED_CONSTRUCTION_PLAN = "approved_construction_plan"
 
-def _build_csv_url(source_file_param: str) -> str:
-    """Return a Cypher expression for the CSV URL.
-    If source_file already starts with http/https, use it as-is; otherwise prepend file:///."""
-    return (
-        f"CASE WHEN {source_file_param} STARTS WITH 'http' "
-        f"THEN {source_file_param} "
-        f"ELSE 'file:///' + {source_file_param} END"
-    )
+# Fallback data directory: project root / data/
+_FALLBACK_DATA_DIR = Path(__file__).parent.parent.parent.parent.parent / "data"
 
 
-def construct_node(construction_rule: dict) -> Dict[str, Any]:
-    """Construct a node from the construction rule."""
-    batch_load_nodes_cypher = f"""
-    LOAD CSV WITH HEADERS FROM {_build_csv_url('$import_file')} AS row
-    MERGE (n:$($label) {{id: row[$unique_column_name]}})
-    SET n += row
-    """
-    return graphdb.send_query(batch_load_nodes_cypher, {
-        "import_file": construction_rule["source_file"],
-        "label": construction_rule["label"],
-        "unique_column_name": construction_rule["unique_column_name"],
-        "properties": construction_rule["properties"]
-    })
+def _resolve_csv_path(source_file: str) -> Path | None:
+    """Resolve a source file name to an absolute path in the data directory."""
+    from agents.tools.cypher_tools import get_neo4j_import_dir
 
-def construct_relationship(construction_rule: dict) -> Dict[str, Any]:
-    """Construct a relationship from the construction rule."""
-    batch_load_relationships_cypher = f"""
-    LOAD CSV WITH HEADERS FROM {_build_csv_url('$import_file')} AS row
-    MATCH (from_node:$($from_node_label) {{id: row[$from_node_column]}})
-    MATCH (to_node:$($to_node_label) {{id: row[$to_node_column]}})
-    MERGE (from_node)-[r:$($relationship_type)]->(to_node)
-    SET r += row
-    """
-    return graphdb.send_query(batch_load_relationships_cypher, {
-        "import_file": construction_rule["source_file"],
-        "from_node_label": construction_rule["from_node_label"],
-        "to_node_label": construction_rule["to_node_label"],
-        "from_node_column": construction_rule["from_node_column"],
-        "to_node_column": construction_rule["to_node_column"],
-        "relationship_type": construction_rule["relationship_type"],
-        "properties": construction_rule["properties"]
-    })
+    result = get_neo4j_import_dir()
+    if result["status"] == "success":
+        p = Path(result["neo4j_import_dir"]) / source_file
+        if p.exists():
+            return p
+
+    p = _FALLBACK_DATA_DIR / source_file
+    if p.exists():
+        return p
+
+    return None
+
+
+def _read_csv(source_file: str) -> tuple[list[dict], str | None]:
+    """Read a CSV file and return (rows_as_dicts, error_message)."""
+    path = _resolve_csv_path(source_file)
+    if path is None:
+        return [], f"CSV file not found: {source_file}"
+
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            rows = list(reader)
+        return rows, None
+    except Exception as e:
+        return [], f"Error reading {source_file}: {e}"
+
+
+BATCH_SIZE = 500
 
 
 def load_nodes_from_csv(
@@ -63,22 +60,30 @@ def load_nodes_from_csv(
     unique_column_name: str,
     properties: list[str],
 ) -> Dict[str, Any]:
-    """Batch loading of nodes from a CSV file"""
+    """Batch loading of nodes from a CSV file using UNWIND."""
 
-    query = f"""LOAD CSV WITH HEADERS FROM {_build_csv_url('$source_file')} AS row
-    CALL (row) {{
-        MERGE (n:$($label) {{ {unique_column_name} : row[$unique_column_name] }})
-        FOREACH (k IN $properties | SET n[k] = row[k])
-    }} IN TRANSACTIONS OF 1000 ROWS
+    rows, err = _read_csv(source_file)
+    if err:
+        return tool_error(err)
+
+    all_props = list({unique_column_name} | set(properties))
+    set_clauses = ", ".join(f"n.`{prop}` = row.`{prop}`" for prop in properties)
+
+    query = f"""UNWIND $rows AS row
+    MERGE (n:`{label}` {{ `{unique_column_name}`: row.`{unique_column_name}` }})
+    SET {set_clauses}
     """
 
-    results = graphdb.send_query(query, {
-        "source_file": source_file,
-        "label": label,
-        "unique_column_name": unique_column_name,
-        "properties": properties
-    })
-    return results
+    total_loaded = 0
+    for i in range(0, len(rows), BATCH_SIZE):
+        batch = [{k: r.get(k) for k in all_props} for r in rows[i:i + BATCH_SIZE]]
+        result = graphdb.send_query(query, {"rows": batch})
+        if result["status"] == "error":
+            return result
+        total_loaded += len(batch)
+
+    logger.info(f"Loaded {total_loaded} {label} nodes from {source_file}")
+    return tool_success("records", [{"nodes_loaded": total_loaded, "label": label}])
 
 
 def import_nodes(node_construction: dict) -> dict:
@@ -107,38 +112,55 @@ def import_relationships(relationship_construction: dict) -> Dict[str, Any]:
 
     from_node_column = relationship_construction["from_node_column"]
     to_node_column = relationship_construction["to_node_column"]
-    query = f"""LOAD CSV WITH HEADERS FROM {_build_csv_url('$source_file')} AS row
-    CALL (row) {{
-        MATCH (from_node:$($from_node_label) {{ {from_node_column} : row[$from_node_column] }}),
-              (to_node:$($to_node_label) {{ {to_node_column} : row[$to_node_column] }} )
-        MERGE (from_node)-[r:$($relationship_type)]->(to_node)
-        FOREACH (k IN $properties | SET r[k] = row[k])
-    }} IN TRANSACTIONS OF 1000 ROWS
+    from_label = relationship_construction["from_node_label"]
+    to_label = relationship_construction["to_node_label"]
+    rel_type = relationship_construction["relationship_type"]
+    properties = relationship_construction["properties"]
+    source_file = relationship_construction["source_file"]
+
+    rows, err = _read_csv(source_file)
+    if err:
+        return tool_error(err)
+
+    needed_cols = list({from_node_column, to_node_column} | set(properties))
+    set_clauses = ", ".join(f"r.`{prop}` = row.`{prop}`" for prop in properties)
+    set_line = f"SET {set_clauses}" if properties else ""
+
+    query = f"""UNWIND $rows AS row
+    MATCH (from_node:`{from_label}` {{ `{from_node_column}`: row.`{from_node_column}` }}),
+          (to_node:`{to_label}` {{ `{to_node_column}`: row.`{to_node_column}` }})
+    MERGE (from_node)-[r:`{rel_type}`]->(to_node)
+    {set_line}
     """
 
-    results = graphdb.send_query(query, {
-        "source_file": relationship_construction["source_file"],
-        "from_node_label": relationship_construction["from_node_label"],
-        "from_node_column": relationship_construction["from_node_column"],
-        "to_node_label": relationship_construction["to_node_label"],
-        "to_node_column": relationship_construction["to_node_column"],
-        "relationship_type": relationship_construction["relationship_type"],
-        "properties": relationship_construction["properties"]
-    })
-    return results
+    total_loaded = 0
+    for i in range(0, len(rows), BATCH_SIZE):
+        batch = [{k: r.get(k) for k in needed_cols} for r in rows[i:i + BATCH_SIZE]]
+        result = graphdb.send_query(query, {"rows": batch})
+        if result["status"] == "error":
+            return result
+        total_loaded += len(batch)
+
+    logger.info(f"Created {total_loaded} {rel_type} relationships from {source_file}")
+    return tool_success("records", [{"relationships_loaded": total_loaded, "type": rel_type}])
+
 
 def construct_domain_graph(construction_plan: dict) -> Dict[str, Any]:
     """Construct a domain graph according to a construction plan."""
 
-    logger.debug(f"Building domain graph from approved construction plan: {construction_plan}")
+    logger.info(f"Building domain graph from approved construction plan")
 
     node_constructions = [value for value in construction_plan.values() if value['construction_type'] == 'node']
     for node_construction in node_constructions:
-        import_nodes(node_construction)
+        result = import_nodes(node_construction)
+        if result["status"] == "error":
+            return result
 
     relationship_constructions = [value for value in construction_plan.values() if value['construction_type'] == 'relationship']
     for relationship_construction in relationship_constructions:
-        import_relationships(relationship_construction)
+        result = import_relationships(relationship_construction)
+        if result["status"] == "error":
+            return result
 
     return tool_success("domain_graph_constructed", construction_plan)
 
