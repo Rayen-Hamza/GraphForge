@@ -7,7 +7,7 @@ from google.adk.tools import agent_tool
 from typing import AsyncGenerator
 from google.adk.events import Event, EventActions
 
-from agents.common.llm_catalog import get_llm
+from agents.common.llm_catalog import get_llm, rate_limit_before_model
 from agents.tools.construction_plan_tools import (
     get_proposed_construction_plan,
     approve_proposed_construction_plan,
@@ -31,7 +31,8 @@ schema_proposal_agent = LlmAgent(
     model=get_llm(),
     instruction=variants[AGENT_NAME]["instruction"],
     tools=variants[AGENT_NAME]["tools"],
-    before_agent_callback=initialize_feedback
+    before_agent_callback=initialize_feedback,
+    before_model_callback=rate_limit_before_model,
 )
 
 CRITIC_NAME = "schema_critic_agent_v1"
@@ -41,7 +42,8 @@ schema_critic_agent = LlmAgent(
     model=get_llm(),
     instruction=variants[CRITIC_NAME]["instruction"],
     tools=variants[CRITIC_NAME]["tools"],
-    output_key="feedback"
+    output_key="feedback",
+    before_model_callback=rate_limit_before_model,
 )
 
 class CheckStatusAndEscalate(BaseAgent):
@@ -60,6 +62,7 @@ refinement_loop = LoopAgent(
 root_agent = LlmAgent(
     name="schema_proposal_agent_coordinator",
     model=get_llm(),
+    before_model_callback=rate_limit_before_model,
     instruction="""
     You are a coordinator for the graph construction plan process. Use tools to propose a schema to the user.
     If the user disapproves, use the tools to refine the schema and ask the user to approve again.

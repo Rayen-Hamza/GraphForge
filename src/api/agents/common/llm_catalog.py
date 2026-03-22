@@ -1,12 +1,40 @@
 from enum import Enum
+import asyncio
 import logging
 import os
+import time
 
 from google.adk.models.lite_llm import LiteLlm
+from google.adk.agents.callback_context import CallbackContext
+from google.adk.models.llm_request import LlmRequest
+from google.adk.models.llm_response import LlmResponse
+from typing import Optional
 
 from agents.common.config import get_settings
 
 logger = logging.getLogger(__name__)
+
+
+# ── Rate limiter for free-tier Gemini (15 RPM) ──────────────
+_RPM_LIMIT = 15
+_MIN_INTERVAL = 60.0 / _RPM_LIMIT          # ~4s between calls
+_last_call_time: float = 0.0
+_rate_lock = asyncio.Lock()
+
+
+async def rate_limit_before_model(
+    callback_context: CallbackContext, llm_request: LlmRequest
+) -> Optional[LlmResponse]:
+    """before_model_callback that throttles every LLM call to stay under RPM limit."""
+    global _last_call_time
+    async with _rate_lock:
+        now = time.monotonic()
+        wait = _MIN_INTERVAL - (now - _last_call_time)
+        if wait > 0:
+            logger.debug(f"\033[93mRate limiter: sleeping {wait:.1f}s before LLM call\033[0m")
+            await asyncio.sleep(wait)
+        _last_call_time = time.monotonic()
+    return None  # proceed with the actual LLM call
 
 # Native ADK Gemini model names (no litellm prefix)
 MODEL_GEMINI_2_0_FLASH = "gemini-3.1-flash-lite-preview"
