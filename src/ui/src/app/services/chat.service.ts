@@ -98,6 +98,7 @@ export class ChatService {
         minute: '2-digit',
       }),
       agentSteps: [],
+      contentParts: [],
       isStreaming: true,
     };
     this.messages.update((m) => [...m, assistantMsg]);
@@ -210,7 +211,11 @@ export class ChatService {
       this.messages.update((msgs) =>
         msgs.map((m) =>
           m.id === msgId
-            ? { ...m, toolInvocations: [...(m.toolInvocations ?? []), invocation] }
+            ? {
+                ...m,
+                toolInvocations: [...(m.toolInvocations ?? []), invocation],
+                contentParts: [...(m.contentParts ?? []), { type: 'tool' as const, toolId: invocation.id }],
+              }
             : m,
         ),
       );
@@ -245,9 +250,17 @@ export class ChatService {
         this.messages.update((msgs) =>
           msgs.map((m) => {
             if (m.id !== msgId) return m;
+            const parts = [...(m.contentParts ?? [])];
+            const lastPart = parts[parts.length - 1];
+            if (!isNewAgent && lastPart?.type === 'text') {
+              parts[parts.length - 1] = { type: 'text', text: lastPart.text + textContent };
+            } else {
+              parts.push({ type: 'text', text: textContent });
+            }
             return {
               ...m,
               content: isNewAgent ? textContent : m.content + textContent,
+              contentParts: parts,
             };
           }),
         );
@@ -260,9 +273,17 @@ export class ChatService {
         this.messages.update((msgs) =>
           msgs.map((m) => {
             if (m.id !== msgId) return m;
+            const parts = [...(m.contentParts ?? [])];
+            const lastPart = parts[parts.length - 1];
+            if (!isNewAgent && lastPart?.type === 'text') {
+              parts[parts.length - 1] = { type: 'text', text: lastPart.text + textContent };
+            } else {
+              parts.push({ type: 'text', text: textContent });
+            }
             return {
               ...m,
               content: isNewAgent ? textContent : m.content + textContent,
+              contentParts: parts,
             };
           }),
         );

@@ -140,56 +140,58 @@
                   <span class="msg-timestamp">{{ msg.timestamp }}</span>
                 </div>
 
-                <!-- ── Tool Invocations Timeline ── -->
-                @if (msg.toolInvocations?.length) {
-                  <div class="tool-timeline">
-                    @for (tool of msg.toolInvocations; track tool.id; let i = $index) {
-                      <div class="tool-timeline-row"
-                           [class.tl-calling]="tool.status === 'calling'"
-                           [class.tl-success]="tool.status === 'success'"
-                           [class.tl-error]="tool.status === 'error'"
-                           [style.animation-delay]="(i * 80) + 'ms'">
-                        @if (i > 0) {
-                          <div class="tl-connector" [class.tl-connector-done]="tool.status !== 'calling'"></div>
-                        }
-                        <div class="tl-row-content">
-                          <div class="tl-node">
-                            @if (tool.status === 'calling') {
-                              <div class="tl-node-ring"></div>
-                              <div class="tl-node-core"></div>
-                            } @else if (tool.status === 'success') {
-                              <div class="tl-node-done">
-                                <svg width="10" height="10" viewBox="0 0 14 14" fill="none">
-                                  <path d="M3.5 7l2.5 2.5 4.5-4.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
-                                </svg>
-                              </div>
-                            } @else {
-                              <div class="tl-node-error">
-                                <svg width="10" height="10" viewBox="0 0 14 14" fill="none">
-                                  <path d="M4.5 4.5l5 5M9.5 4.5l-5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-                                </svg>
-                              </div>
-                            }
+                <!-- ── Interleaved content parts (text + tool calls in chronological order) ── -->
+                @for (displayPart of getDisplayParts(msg); track $index) {
+                  @if (displayPart.type === 'tools') {
+                    <div class="tool-timeline">
+                      @for (tool of displayPart.tools; track tool.id; let i = $index) {
+                        <div class="tool-timeline-row"
+                             [class.tl-calling]="tool.status === 'calling'"
+                             [class.tl-success]="tool.status === 'success'"
+                             [class.tl-error]="tool.status === 'error'"
+                             [style.animation-delay]="(i * 80) + 'ms'">
+                          @if (i > 0) {
+                            <div class="tl-connector" [class.tl-connector-done]="tool.status !== 'calling'"></div>
+                          }
+                          <div class="tl-row-content">
+                            <div class="tl-node">
+                              @if (tool.status === 'calling') {
+                                <div class="tl-node-ring"></div>
+                                <div class="tl-node-core"></div>
+                              } @else if (tool.status === 'success') {
+                                <div class="tl-node-done">
+                                  <svg width="10" height="10" viewBox="0 0 14 14" fill="none">
+                                    <path d="M3.5 7l2.5 2.5 4.5-4.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+                                  </svg>
+                                </div>
+                              } @else {
+                                <div class="tl-node-error">
+                                  <svg width="10" height="10" viewBox="0 0 14 14" fill="none">
+                                    <path d="M4.5 4.5l5 5M9.5 4.5l-5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                                  </svg>
+                                </div>
+                              }
+                            </div>
+                            <div class="tl-info">
+                              <span class="tl-name">{{ tool.name }}</span>
+                              @if (tool.endTime && tool.startTime) {
+                                <span class="tl-duration">{{ ((tool.endTime - tool.startTime) / 1000).toFixed(1) }}s</span>
+                              }
+                            </div>
                           </div>
-                          <div class="tl-info">
-                            <span class="tl-name">{{ tool.name }}</span>
-                            @if (tool.endTime && tool.startTime) {
-                              <span class="tl-duration">{{ ((tool.endTime - tool.startTime) / 1000).toFixed(1) }}s</span>
-                            }
-                          </div>
+                          @if (tool.status === 'calling') {
+                            <div class="tl-shimmer"></div>
+                          }
                         </div>
-                        @if (tool.status === 'calling') {
-                          <div class="tl-shimmer"></div>
-                        }
-                      </div>
-                    }
-                  </div>
+                      }
+                    </div>
+                  } @else {
+                    <div class="msg-content-text markdown-body"
+                         [class.streaming-cursor]="msg.isStreaming && displayPart.isLastText"
+                         [class.streaming-text]="msg.isStreaming && displayPart.text"
+                         [innerHTML]="displayPart.text | markdown"></div>
+                  }
                 }
-
-                <div class="msg-content-text markdown-body"
-                     [class.streaming-cursor]="msg.isStreaming"
-                     [class.streaming-text]="msg.isStreaming && msg.content"
-                     [innerHTML]="msg.content | markdown"></div>
 
                 @if (msg.agentSteps && !msg.isStreaming) {
                   <div class="agent-steps-summary">

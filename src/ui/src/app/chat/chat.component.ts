@@ -4,8 +4,15 @@ import { RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 
 import { ChatService } from '../services/chat.service';
-import { AGENT_DISPLAY_NAMES } from '../models/chat.models';
+import { ChatMessage, ToolInvocation, AGENT_DISPLAY_NAMES } from '../models/chat.models';
 import { MarkdownPipe } from '../shared/markdown.pipe';
+
+export interface DisplayPart {
+    type: 'text' | 'tools';
+    text?: string;
+    tools?: ToolInvocation[];
+    isLastText?: boolean;
+}
 
 @Component({
     selector: 'app-chat',
@@ -203,6 +210,51 @@ export class ChatComponent {
 
     completedStepCount(steps: { status: string }[]): number {
         return steps.filter(s => s.status === 'completed').length;
+    }
+
+    /**
+     * Group contentParts into display segments: text blocks and consecutive tool groups.
+     * Preserves chronological interleaving of text and tool calls.
+     */
+    getDisplayParts(msg: ChatMessage): DisplayPart[] {
+        if (!msg.contentParts?.length) {
+            // Fallback for user messages or messages without parts
+            const result: DisplayPart[] = [];
+            if (msg.toolInvocations?.length) {
+                result.push({ type: 'tools', tools: msg.toolInvocations });
+            }
+            if (msg.content) {
+                result.push({ type: 'text', text: msg.content, isLastText: true });
+            }
+            return result;
+        }
+
+        const result: DisplayPart[] = [];
+        for (const part of msg.contentParts) {
+            if (part.type === 'text') {
+                result.push({ type: 'text', text: part.text, isLastText: false });
+            } else {
+                const tool = msg.toolInvocations?.find(t => t.id === part.toolId);
+                if (tool) {
+                    const last = result[result.length - 1];
+                    if (last?.type === 'tools') {
+                        last.tools!.push(tool);
+                    } else {
+                        result.push({ type: 'tools', tools: [tool] });
+                    }
+                }
+            }
+        }
+
+        // Mark the last text part for streaming cursor
+        for (let i = result.length - 1; i >= 0; i--) {
+            if (result[i].type === 'text') {
+                result[i].isLastText = true;
+                break;
+            }
+        }
+
+        return result;
     }
 
 }

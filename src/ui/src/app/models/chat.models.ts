@@ -87,6 +87,11 @@ export interface GraphStats {
   confidence?: number;
 }
 
+/** A single ordered piece of an assistant message — text or a tool reference. */
+export type MessageContentPart =
+  | { type: 'text'; text: string }
+  | { type: 'tool'; toolId: string };
+
 export interface ChatMessage {
   id: string;
   role: 'user' | 'assistant';
@@ -94,6 +99,8 @@ export interface ChatMessage {
   timestamp: string;
   agentSteps?: AgentStep[];
   toolInvocations?: ToolInvocation[];
+  /** Chronologically ordered parts (text interleaved with tool calls). */
+  contentParts?: MessageContentPart[];
   activeAgent?: string;
   graphStats?: GraphStats;
   isStreaming?: boolean;
