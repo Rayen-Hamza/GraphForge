@@ -1,37 +1,16 @@
-import { Component, signal, computed, ElementRef, ViewChild, AfterViewInit } from '@angular/core';
+import { Component, signal, computed, inject, effect, ElementRef, ViewChild, NgZone } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 
-interface AgentStep {
-    agent: string;
-    status: 'completed' | 'running' | 'pending';
-    description: string;
-    duration?: string;
-    tool?: string;
-}
-
-interface ChatMessage {
-    id: number;
-    role: 'user' | 'assistant';
-    content: string;
-    timestamp: string;
-    agentSteps?: AgentStep[];
-    graphStats?: { nodes: number; edges: number; clusters: number };
-}
-
-interface Conversation {
-    id: number;
-    title: string;
-    preview: string;
-    timestamp: string;
-    active: boolean;
-}
+import { ChatService } from '../services/chat.service';
+import { AGENT_DISPLAY_NAMES } from '../models/chat.models';
+import { MarkdownPipe } from '../shared/markdown.pipe';
 
 @Component({
     selector: 'app-chat',
     standalone: true,
-    imports: [CommonModule, RouterModule, FormsModule],
+    imports: [CommonModule, RouterModule, FormsModule, MarkdownPipe],
     template: `
     <div class="chat-layout">
       <!-- ═══ SIDEBAR ═══ -->
@@ -121,7 +100,7 @@ interface Conversation {
           </div>
         </div>
 
-        <div class="chat-messages" #messagesContainer>
+        <div class="chat-messages" #messagesContainer (scroll)="onMessagesScroll()">
           @if (messages().length === 0) {
             <div class="empty-state">
               <div class="empty-icon">
@@ -166,44 +145,73 @@ interface Conversation {
               <div class="msg-body">
                 <div class="msg-header">
                   <span class="msg-author">{{ msg.role === 'user' ? 'You' : 'GraphForge' }}</span>
+                  @if (msg.role === 'assistant' && msg.activeAgent && msg.isStreaming) {
+                    <span class="active-agent-badge">
+                      <span class="agent-pulse"></span>
+                      {{ msg.activeAgent }}
+                    </span>
+                  }
                   <span class="msg-timestamp">{{ msg.timestamp }}</span>
                 </div>
-                <div class="msg-content-text">{{ msg.content }}</div>
 
-                @if (msg.agentSteps) {
-                  <div class="agent-steps-card">
-                    <div class="steps-header">
+                <!-- ── Tool Invocations (real-time) ── -->
+                @if (msg.toolInvocations?.length) {
+                  <div class="tool-invocations-stream">
+                    @for (tool of msg.toolInvocations; track tool.id; let i = $index) {
+                      <div class="tool-pill" [class.tool-calling]="tool.status === 'calling'"
+                           [class.tool-success]="tool.status === 'success'"
+                           [class.tool-error]="tool.status === 'error'"
+                           [style.animation-delay]="(i * 50) + 'ms'">
+                        <div class="tool-status-indicator">
+                          @if (tool.status === 'calling') {
+                            <div class="tool-spinner"></div>
+                          } @else if (tool.status === 'success') {
+                            <svg class="tool-check" width="12" height="12" viewBox="0 0 14 14" fill="none">
+                              <path d="M3.5 7l2.5 2.5 4.5-4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                          } @else {
+                            <svg class="tool-error-icon" width="12" height="12" viewBox="0 0 14 14" fill="none">
+                              <path d="M4 4l6 6M10 4l-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                            </svg>
+                          }
+                        </div>
+                        <span class="tool-name">{{ tool.name }}</span>
+                        @if (tool.endTime && tool.startTime) {
+                          <span class="tool-duration">{{ ((tool.endTime - tool.startTime) / 1000).toFixed(1) }}s</span>
+                        }
+                      </div>
+                    }
+                  </div>
+                }
+
+                <div class="msg-content-text markdown-body" [class.streaming-cursor]="msg.isStreaming"
+                     [innerHTML]="msg.content | markdown"></div>
+
+                @if (msg.agentSteps && !msg.isStreaming) {
+                  <div class="agent-steps-summary">
+                    <button class="steps-summary-toggle" (click)="toggleStepsSummary(msg.id)">
                       <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
                         <path d="M2 8h12M8 2v12" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" opacity="0.5"/>
                         <circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.3"/>
                       </svg>
-                      <span>Agent Pipeline</span>
-                    </div>
-                    @for (step of msg.agentSteps; track step.agent) {
-                      <div class="step-row" [class.step-completed]="step.status === 'completed'"
-                                            [class.step-running]="step.status === 'running'"
-                                            [class.step-pending]="step.status === 'pending'">
-                        <div class="step-status-icon">
-                          @if (step.status === 'completed') {
-                            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                              <circle cx="7" cy="7" r="6" fill="var(--accent-success)" opacity="0.15"/>
+                      <span>{{ completedStepCount(msg.agentSteps) }} agents completed</span>
+                      <svg class="summary-chevron" [class.expanded]="expandedSteps().has(msg.id)" width="12" height="12" viewBox="0 0 12 12" fill="none">
+                        <path d="M3 4.5l3 3 3-3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+                      </svg>
+                    </button>
+                    @if (expandedSteps().has(msg.id)) {
+                      <div class="steps-expanded-list">
+                        @for (step of msg.agentSteps; track step.agent) {
+                          <div class="step-row-mini" [class.step-completed]="step.status === 'completed'">
+                            <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
+                              <circle cx="7" cy="7" r="6" fill="var(--accent-success)" opacity="0.12"/>
                               <path d="M4 7l2 2 4-4" stroke="var(--accent-success)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
                             </svg>
-                          } @else if (step.status === 'running') {
-                            <div class="spinner"></div>
-                          } @else {
-                            <div class="pending-dot"></div>
-                          }
-                        </div>
-                        <div class="step-info">
-                          <div class="step-agent-name">{{ step.agent }}</div>
-                          <div class="step-desc">{{ step.description }}</div>
-                        </div>
-                        @if (step.tool) {
-                          <span class="step-tool">{{ step.tool }}</span>
-                        }
-                        @if (step.duration) {
-                          <span class="step-duration">{{ step.duration }}</span>
+                            <span class="step-mini-name">{{ agentDisplayName(step.agent) }}</span>
+                            @if (step.duration) {
+                              <span class="step-mini-dur">{{ step.duration }}</span>
+                            }
+                          </div>
                         }
                       </div>
                     }
@@ -231,17 +239,53 @@ interface Conversation {
           }
         </div>
 
+        @if (isStreaming()) {
+          <div class="streaming-indicator">
+            <div class="streaming-wave">
+              <span></span><span></span><span></span><span></span><span></span>
+            </div>
+            <div class="streaming-info">
+              <span class="streaming-label">{{ currentStreamingAgent() || 'Processing' }}</span>
+              <span class="streaming-sub">{{ currentStreamingToolCount() > 0 ? currentStreamingToolCount() + ' tool calls' : 'thinking...' }}</span>
+            </div>
+            <div class="streaming-elapsed">{{ streamElapsed() }}</div>
+            <button class="btn-icon-sm cancel-btn" (click)="cancelStream()">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <rect x="3" y="3" width="8" height="8" rx="1.5" fill="currentColor"/>
+              </svg>
+            </button>
+          </div>
+        }
+
+        @if (error()) {
+          <div class="error-banner">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <circle cx="8" cy="8" r="7" stroke="currentColor" stroke-width="1.3"/>
+              <path d="M8 4.5v4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+              <circle cx="8" cy="11" r="0.8" fill="currentColor"/>
+            </svg>
+            <span>{{ error() }}</span>
+            <button class="btn-icon-sm" (click)="dismissError()">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <path d="M3 3l8 8M11 3l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+              </svg>
+            </button>
+          </div>
+        }
+
         <!-- Input Area -->
         <div class="chat-input-area">
-          <div class="input-container">
+          <div class="input-container" [class.input-active]="isInputFocused()">
             <textarea
               #inputBox
               placeholder="Describe what you want to explore..."
               [(ngModel)]="inputText"
               (keydown.enter)="onEnter($event)"
+              (focus)="isInputFocused.set(true)"
+              (blur)="isInputFocused.set(false)"
               rows="1"
             ></textarea>
-            <button class="send-btn" [disabled]="!inputText.trim()" (click)="sendMessage()">
+            <button class="send-btn" [disabled]="!inputText.trim() || isStreaming()" (click)="sendMessage()">
               <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
                 <path d="M3 9l6-6m0 0l6 6m-6-6v12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
               </svg>
@@ -282,24 +326,72 @@ interface Conversation {
                 <span class="sc-label">Clusters</span>
               </div>
               <div class="stat-card">
-                <span class="sc-value">{{ currentGraphStats().confidence }}%</span>
+                <span class="sc-value">{{ currentGraphStats().confidence ?? 0 }}%</span>
                 <span class="sc-label">Confidence</span>
               </div>
             </div>
           </div>
 
-          <!-- Agent Pipeline -->
+          <!-- Active Agent (only running) -->
           <div class="panel-section">
-            <div class="panel-section-title">Agent Pipeline</div>
-            <div class="pipeline-list">
-              @for (agent of agentPipeline(); track agent.name) {
-                <div class="agent-row" [class]="'agent-' + agent.status">
-                  <div class="agent-status-dot" [class]="'dot-' + agent.status"></div>
-                  <div class="agent-info">
-                    <span class="agent-name">{{ agent.name }}</span>
-                    <span class="agent-desc">{{ agent.statusText }}</span>
-                  </div>
+            <div class="panel-section-title">Active Agent</div>
+            @if (runningAgent()) {
+              <div class="active-agent-card">
+                <div class="active-agent-orb">
+                  <span class="orb-ring"></span>
+                  <span class="orb-core"></span>
                 </div>
+                <div class="active-agent-info">
+                  <span class="active-agent-name">{{ runningAgent()!.displayName }}</span>
+                  <span class="active-agent-desc">{{ runningAgent()!.description }}</span>
+                </div>
+              </div>
+              @if (activeToolInvocations().length) {
+                <div class="panel-tool-list">
+                  @for (tool of activeToolInvocations(); track tool.id) {
+                    <div class="panel-tool-item" [class.panel-tool-calling]="tool.status === 'calling'" [class.panel-tool-done]="tool.status === 'success'">
+                      <div class="panel-tool-dot" [class.dot-calling]="tool.status === 'calling'" [class.dot-done]="tool.status === 'success'"></div>
+                      <span class="panel-tool-name">{{ tool.name }}</span>
+                      @if (tool.endTime && tool.startTime) {
+                        <span class="panel-tool-dur">{{ ((tool.endTime - tool.startTime) / 1000).toFixed(1) }}s</span>
+                      }
+                    </div>
+                  }
+                </div>
+              }
+            } @else {
+              <div class="no-agent-idle">
+                <div class="idle-dot"></div>
+                <span>Idle</span>
+              </div>
+            }
+          </div>
+
+          <!-- Pipeline Progress -->
+          <div class="panel-section">
+            <div class="panel-section-title">Pipeline</div>
+            <div class="pipeline-track">
+              @for (step of agentPipeline(); track step.agent; let i = $index; let last = $last) {
+                <div class="pipeline-node" [class.node-completed]="step.status === 'completed'"
+                     [class.node-running]="step.status === 'running'"
+                     [class.node-pending]="step.status === 'pending'">
+                  <div class="pipeline-node-dot">
+                    @if (step.status === 'completed') {
+                      <svg width="10" height="10" viewBox="0 0 14 14" fill="none">
+                        <path d="M3.5 7l2.5 2.5 4.5-4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                      </svg>
+                    } @else if (step.status === 'running') {
+                      <div class="node-spinner"></div>
+                    }
+                  </div>
+                  <span class="pipeline-node-label">{{ agentDisplayName(step.agent) }}</span>
+                  @if (step.duration) {
+                    <span class="pipeline-node-dur">{{ step.duration }}</span>
+                  }
+                </div>
+                @if (!last) {
+                  <div class="pipeline-connector" [class.connector-done]="step.status === 'completed'"></div>
+                }
               }
             </div>
           </div>
@@ -308,45 +400,9 @@ interface Conversation {
           <div class="panel-section">
             <div class="panel-section-title">Recent Entities</div>
             <div class="entity-tags">
-              @for (entity of recentEntities; track entity) {
+              @for (entity of recentEntities(); track entity) {
                 <span class="entity-tag">{{ entity }}</span>
               }
-            </div>
-          </div>
-
-          <!-- Mini Graph Visualization -->
-          <div class="panel-section">
-            <div class="panel-section-title">Graph Topology</div>
-            <div class="mini-graph">
-              <svg viewBox="0 0 220 160" fill="none">
-                <!-- Edges -->
-                <line x1="110" y1="40" x2="50" y2="80" stroke="var(--accent-green-muted)" stroke-width="1.5"/>
-                <line x1="110" y1="40" x2="170" y2="70" stroke="var(--accent-green-muted)" stroke-width="1.5"/>
-                <line x1="50" y1="80" x2="80" y2="130" stroke="var(--accent-green-muted)" stroke-width="1"/>
-                <line x1="170" y1="70" x2="140" y2="120" stroke="var(--accent-green-muted)" stroke-width="1"/>
-                <line x1="50" y1="80" x2="140" y2="120" stroke="var(--accent-green-muted)" stroke-width="0.8" opacity="0.5"/>
-                <line x1="110" y1="40" x2="80" y2="130" stroke="var(--accent-green-muted)" stroke-width="0.8" opacity="0.4"/>
-                <line x1="170" y1="70" x2="30" y2="130" stroke="var(--accent-green-muted)" stroke-width="0.6" opacity="0.3"/>
-
-                <!-- Nodes -->
-                <circle cx="110" cy="40" r="12" fill="var(--accent-primary)"/>
-                <text x="110" y="44" text-anchor="middle" fill="white" font-size="8" font-weight="600" font-family="var(--font-mono)">ML</text>
-
-                <circle cx="50" cy="80" r="10" fill="var(--accent-green)"/>
-                <text x="50" y="84" text-anchor="middle" fill="white" font-size="7" font-weight="600" font-family="var(--font-mono)">NLP</text>
-
-                <circle cx="170" cy="70" r="10" fill="var(--accent-green)"/>
-                <text x="170" y="74" text-anchor="middle" fill="white" font-size="7" font-weight="600" font-family="var(--font-mono)">CV</text>
-
-                <circle cx="80" cy="130" r="8" fill="var(--accent-green-light)"/>
-                <text x="80" y="133" text-anchor="middle" fill="white" font-size="6" font-weight="600" font-family="var(--font-mono)">LLM</text>
-
-                <circle cx="140" cy="120" r="8" fill="var(--accent-green-light)"/>
-                <text x="140" y="123" text-anchor="middle" fill="white" font-size="6" font-weight="600" font-family="var(--font-mono)">GNN</text>
-
-                <circle cx="30" cy="130" r="6" fill="var(--accent-green-muted)"/>
-                <circle cx="190" cy="120" r="5" fill="var(--accent-green-muted)"/>
-              </svg>
             </div>
           </div>
         </aside>
@@ -618,13 +674,14 @@ interface Conversation {
       border-color: var(--accent-orange);
       color: var(--accent-orange);
       background: rgba(232, 115, 74, 0.04);
+      transform: translateY(-1px);
     }
 
     .message {
       display: flex;
       gap: 14px;
       margin-bottom: 24px;
-      animation: fadeInUp 0.4s ease both;
+      animation: msgSlideIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
       max-width: 800px;
     }
     .msg-avatar-chat {
@@ -665,96 +722,266 @@ interface Conversation {
       color: var(--text-tertiary);
       font-family: var(--font-mono);
     }
+
+    /* Active Agent Badge — inline with message header */
+    .active-agent-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 2px 10px 2px 8px;
+      background: linear-gradient(135deg, rgba(61, 139, 86, 0.08), rgba(74, 93, 79, 0.06));
+      border: 1px solid rgba(61, 139, 86, 0.15);
+      border-radius: var(--radius-full);
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--accent-success);
+      font-family: var(--font-mono);
+      letter-spacing: 0.01em;
+      animation: badgeFadeIn 0.3s ease both;
+    }
+    .agent-pulse {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--accent-success);
+      animation: pulse-glow 1.5s infinite;
+      flex-shrink: 0;
+    }
+
+    /* ═══ Tool Invocation Pills ═══ */
+    .tool-invocations-stream {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin: 8px 0;
+    }
+
+    .tool-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: var(--radius-full);
+      font-size: 12px;
+      animation: toolSlideIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
+      transition: background 0.3s, border-color 0.3s;
+      border: 1px solid var(--border-light);
+      background: var(--bg-surface);
+    }
+    .tool-pill.tool-calling {
+      border-color: rgba(232, 115, 74, 0.3);
+      background: rgba(232, 115, 74, 0.05);
+    }
+    .tool-pill.tool-success {
+      border-color: rgba(61, 139, 86, 0.2);
+      background: rgba(61, 139, 86, 0.04);
+    }
+    .tool-pill.tool-error {
+      border-color: rgba(201, 74, 74, 0.25);
+      background: rgba(201, 74, 74, 0.04);
+    }
+
+    .tool-status-indicator {
+      width: 14px;
+      height: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .tool-spinner {
+      width: 12px;
+      height: 12px;
+      border: 1.5px solid rgba(232, 115, 74, 0.2);
+      border-top-color: var(--accent-orange);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+    .tool-check {
+      color: var(--accent-success);
+      animation: checkPop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+    }
+    .tool-error-icon {
+      color: var(--accent-error);
+    }
+
+    .tool-name {
+      font-size: 11.5px;
+      font-weight: 500;
+      font-family: var(--font-mono);
+      color: var(--text-secondary);
+      white-space: nowrap;
+    }
+    .tool-pill.tool-calling .tool-name {
+      color: var(--accent-orange);
+    }
+
+    .tool-duration {
+      font-size: 10px;
+      font-family: var(--font-mono);
+      color: var(--text-tertiary);
+      flex-shrink: 0;
+    }
+
+    /* ── Agent Steps Summary (collapsed after streaming) ── */
+    .agent-steps-summary {
+      margin-top: 10px;
+    }
+    .steps-summary-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-light);
+      border-radius: var(--radius-full);
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 0.2s;
+      font-family: var(--font-sans);
+    }
+    .steps-summary-toggle:hover {
+      background: var(--bg-surface-subtle);
+      border-color: var(--border-medium);
+    }
+    .summary-chevron {
+      transition: transform 0.2s ease;
+      color: var(--text-tertiary);
+    }
+    .summary-chevron.expanded {
+      transform: rotate(180deg);
+    }
+    .steps-expanded-list {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      margin-top: 8px;
+      padding-left: 4px;
+      animation: fadeIn 0.2s ease both;
+    }
+    .step-row-mini {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 3px 0;
+    }
+    .step-mini-name {
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+    .step-mini-dur {
+      font-size: 11px;
+      color: var(--text-tertiary);
+      font-family: var(--font-mono);
+    }
+
     .msg-content-text {
       font-size: 14.5px;
       line-height: 1.7;
       color: var(--text-primary);
     }
 
-    /* Agent Steps Card */
-    .agent-steps-card {
-      margin-top: 12px;
-      background: var(--bg-surface);
-      border: 1px solid var(--border-light);
-      border-radius: var(--radius-md);
-      overflow: hidden;
-    }
-    .steps-header {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 10px 16px;
-      background: var(--bg-surface-subtle);
-      border-bottom: 1px solid var(--border-light);
-      font-size: 12px;
+    /* ── Markdown body ── */
+    .markdown-body p { margin: 0 0 0.6em; }
+    .markdown-body p:last-child { margin-bottom: 0; }
+    .markdown-body h1, .markdown-body h2, .markdown-body h3,
+    .markdown-body h4, .markdown-body h5, .markdown-body h6 {
+      margin: 1em 0 0.4em;
       font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      color: var(--text-tertiary);
-    }
-    .step-row {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      padding: 12px 16px;
-      border-bottom: 1px solid var(--border-light);
-      transition: background 0.2s;
-    }
-    .step-row:last-child {
-      border-bottom: none;
-    }
-    .step-row:hover {
-      background: var(--bg-surface-warm);
-    }
-    .step-status-icon {
-      width: 20px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      flex-shrink: 0;
-    }
-    .spinner {
-      width: 14px;
-      height: 14px;
-      border: 2px solid var(--accent-green-muted);
-      border-top-color: var(--accent-orange);
-      border-radius: 50%;
-      animation: spin 0.8s linear infinite;
-    }
-    .pending-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: var(--accent-green-muted);
-    }
-    .step-info {
-      flex: 1;
-      min-width: 0;
-    }
-    .step-agent-name {
-      font-size: 13px;
-      font-weight: 600;
+      line-height: 1.3;
       color: var(--text-primary);
     }
-    .step-desc {
-      font-size: 12px;
-      color: var(--text-secondary);
-      margin-top: 2px;
+    .markdown-body h1 { font-size: 1.4em; }
+    .markdown-body h2 { font-size: 1.25em; }
+    .markdown-body h3 { font-size: 1.1em; }
+    .markdown-body ul, .markdown-body ol {
+      margin: 0.4em 0;
+      padding-left: 1.5em;
     }
-    .step-tool {
-      font-size: 11px;
-      padding: 2px 8px;
-      background: var(--bg-surface-subtle);
-      border-radius: var(--radius-xs);
-      color: var(--accent-green);
-      font-family: var(--font-mono);
-      flex-shrink: 0;
+    .markdown-body li { margin: 0.2em 0; }
+    .markdown-body li > p { margin: 0; }
+    .markdown-body strong { font-weight: 600; }
+    .markdown-body code {
+      font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+      font-size: 0.88em;
+      padding: 0.15em 0.4em;
+      border-radius: 4px;
+      background: var(--bg-surface, rgba(0,0,0,0.06));
+      color: var(--accent-primary, #6366f1);
     }
-    .step-duration {
-      font-size: 11px;
-      color: var(--text-tertiary);
-      font-family: var(--font-mono);
-      flex-shrink: 0;
+    .markdown-body pre {
+      margin: 0.6em 0;
+      padding: 14px 16px;
+      border-radius: var(--radius-md, 8px);
+      background: var(--bg-surface, #1e1e2e);
+      overflow-x: auto;
+    }
+    .markdown-body pre code {
+      padding: 0;
+      background: none;
+      color: var(--text-primary);
+      font-size: 0.85em;
+      line-height: 1.6;
+    }
+    .markdown-body blockquote {
+      margin: 0.5em 0;
+      padding: 0.3em 1em;
+      border-left: 3px solid var(--accent-primary, #6366f1);
+      color: var(--text-secondary, #888);
+      background: var(--bg-surface-subtle, rgba(0,0,0,0.03));
+      border-radius: 0 var(--radius-sm, 4px) var(--radius-sm, 4px) 0;
+    }
+    .markdown-body blockquote p { margin: 0; }
+    .markdown-body table {
+      border-collapse: collapse;
+      margin: 0.6em 0;
+      width: 100%;
+      font-size: 0.92em;
+    }
+    .markdown-body th, .markdown-body td {
+      padding: 6px 12px;
+      border: 1px solid var(--border-light, #333);
+      text-align: left;
+    }
+    .markdown-body th {
+      font-weight: 600;
+      background: var(--bg-surface-subtle, rgba(0,0,0,0.04));
+    }
+    .markdown-body hr {
+      border: none;
+      border-top: 1px solid var(--border-light, #333);
+      margin: 1em 0;
+    }
+    .markdown-body a {
+      color: var(--accent-primary, #6366f1);
+      text-decoration: none;
+    }
+    .markdown-body a:hover { text-decoration: underline; }
+
+    /* Streaming cursor — glowing bar with fade pulse */
+    .msg-content-text.streaming-cursor::after {
+      content: '';
+      display: inline-block;
+      width: 2.5px;
+      height: 1.1em;
+      margin-left: 3px;
+      vertical-align: text-bottom;
+      border-radius: 1px;
+      background: var(--accent-orange);
+      box-shadow: 0 0 8px rgba(232, 115, 74, 0.5), 0 0 20px rgba(232, 115, 74, 0.2);
+      animation: cursorGlow 1s ease-in-out infinite;
+    }
+    @keyframes cursorGlow {
+      0%, 100% {
+        opacity: 1;
+        box-shadow: 0 0 8px rgba(232, 115, 74, 0.5), 0 0 20px rgba(232, 115, 74, 0.2);
+      }
+      50% {
+        opacity: 0.4;
+        box-shadow: 0 0 4px rgba(232, 115, 74, 0.2), 0 0 8px rgba(232, 115, 74, 0.1);
+      }
     }
 
     /* Graph Stats Inline */
@@ -799,9 +1026,9 @@ interface Conversation {
       background: var(--bg-surface-warm);
       border: 1.5px solid var(--border-light);
       border-radius: var(--radius-md);
-      transition: border-color 0.2s;
+      transition: border-color 0.25s, box-shadow 0.25s;
     }
-    .input-container:focus-within {
+    .input-container.input-active {
       border-color: var(--accent-green);
       box-shadow: 0 0 0 3px rgba(74, 93, 79, 0.08);
     }
@@ -838,6 +1065,7 @@ interface Conversation {
     .send-btn:hover:not(:disabled) {
       background: var(--accent-orange-hover);
       transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(232, 115, 74, 0.25);
     }
     .send-btn:disabled {
       opacity: 0.4;
@@ -859,6 +1087,116 @@ interface Conversation {
       font-size: 10px;
     }
 
+    /* ═══ Streaming Indicator ═══ */
+    .streaming-indicator {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 10px 24px;
+      background: var(--bg-surface);
+      border-top: 1px solid var(--border-light);
+      animation: indicatorSlideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+      position: relative;
+      overflow: hidden;
+    }
+    .streaming-indicator::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: linear-gradient(90deg,
+        transparent,
+        var(--accent-orange) 20%,
+        var(--accent-success) 50%,
+        var(--accent-orange) 80%,
+        transparent
+      );
+      background-size: 200% 100%;
+      animation: shimmerBar 2s linear infinite;
+    }
+    @keyframes shimmerBar {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+    @keyframes indicatorSlideUp {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .streaming-wave {
+      display: flex;
+      align-items: center;
+      gap: 2.5px;
+      height: 20px;
+    }
+    .streaming-wave span {
+      width: 3px;
+      border-radius: 1.5px;
+      background: var(--accent-orange);
+      animation: waveBar 1s ease-in-out infinite;
+    }
+    .streaming-wave span:nth-child(1) { height: 8px; animation-delay: 0s; }
+    .streaming-wave span:nth-child(2) { height: 14px; animation-delay: 0.12s; }
+    .streaming-wave span:nth-child(3) { height: 18px; animation-delay: 0.24s; }
+    .streaming-wave span:nth-child(4) { height: 14px; animation-delay: 0.36s; }
+    .streaming-wave span:nth-child(5) { height: 8px; animation-delay: 0.48s; }
+    @keyframes waveBar {
+      0%, 100% { transform: scaleY(0.5); opacity: 0.4; }
+      50% { transform: scaleY(1); opacity: 1; }
+    }
+
+    .streaming-info {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+    }
+    .streaming-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-primary);
+      font-family: var(--font-mono);
+      letter-spacing: 0.01em;
+    }
+    .streaming-sub {
+      font-size: 11px;
+      color: var(--text-tertiary);
+      font-family: var(--font-mono);
+    }
+    .streaming-elapsed {
+      font-size: 11px;
+      color: var(--text-tertiary);
+      font-family: var(--font-mono);
+      flex-shrink: 0;
+      min-width: 32px;
+      text-align: right;
+    }
+    .cancel-btn {
+      color: var(--text-tertiary);
+    }
+    .cancel-btn:hover {
+      color: var(--accent-error);
+      background: rgba(201, 74, 74, 0.06);
+    }
+
+    /* ═══ Error Banner ═══ */
+    .error-banner {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 24px;
+      background: rgba(201, 74, 74, 0.04);
+      border-top: 1px solid rgba(201, 74, 74, 0.12);
+      font-size: 13px;
+      color: var(--accent-error);
+      animation: slideDown 0.3s ease both;
+    }
+    .error-banner span {
+      flex: 1;
+    }
+
     /* ═══ State Panel ═══ */
     .state-panel {
       width: 300px;
@@ -868,7 +1206,7 @@ interface Conversation {
       flex-direction: column;
       overflow-y: auto;
       flex-shrink: 0;
-      animation: fadeIn 0.3s ease both;
+      animation: panelSlideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
     }
     .panel-header {
       display: flex;
@@ -919,42 +1257,195 @@ interface Conversation {
       color: var(--text-tertiary);
     }
 
-    .pipeline-list {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }
-    .agent-row {
+    /* ── Active Agent Card ── */
+    .active-agent-card {
       display: flex;
       align-items: center;
-      gap: 10px;
-      padding: 8px 12px;
+      gap: 12px;
+      padding: 14px 16px;
+      background: linear-gradient(135deg, rgba(61, 139, 86, 0.06), rgba(74, 93, 79, 0.04));
+      border: 1px solid rgba(61, 139, 86, 0.12);
       border-radius: var(--radius-sm);
-      transition: background 0.2s;
+      animation: fadeIn 0.3s ease both;
     }
-    .agent-row:hover {
-      background: var(--bg-surface-warm);
+    .active-agent-orb {
+      width: 32px;
+      height: 32px;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
     }
-    .agent-status-dot {
-      width: 8px;
-      height: 8px;
+    .orb-ring {
+      position: absolute;
+      inset: 0;
+      border: 2px solid rgba(61, 139, 86, 0.25);
+      border-top-color: var(--accent-success);
+      border-radius: 50%;
+      animation: spin 1.2s linear infinite;
+    }
+    .orb-core {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--accent-success);
+      animation: pulse-glow 2s infinite;
+    }
+    .active-agent-info {
+      flex: 1;
+      min-width: 0;
+    }
+    .active-agent-name {
+      display: block;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text-primary);
+      letter-spacing: -0.01em;
+    }
+    .active-agent-desc {
+      display: block;
+      font-size: 11px;
+      color: var(--text-secondary);
+      margin-top: 2px;
+    }
+
+    /* ── Panel Tool List ── */
+    .panel-tool-list {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      margin-top: 10px;
+    }
+    .panel-tool-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 10px;
+      border-radius: var(--radius-xs);
+      font-size: 12px;
+      animation: toolSlideIn 0.2s ease both;
+    }
+    .panel-tool-item.panel-tool-calling {
+      background: rgba(232, 115, 74, 0.04);
+    }
+    .panel-tool-dot {
+      width: 6px;
+      height: 6px;
       border-radius: 50%;
       flex-shrink: 0;
     }
-    .dot-completed { background: var(--accent-success); }
-    .dot-running {
+    .dot-calling {
       background: var(--accent-orange);
       animation: pulse-glow 1.5s infinite;
     }
-    .dot-idle { background: var(--accent-green-muted); }
-    .dot-pending { background: var(--accent-green-muted); }
-    .agent-name {
-      font-size: 13px;
-      font-weight: 600;
+    .dot-done {
+      background: var(--accent-success);
     }
-    .agent-desc {
+    .panel-tool-name {
+      flex: 1;
+      font-family: var(--font-mono);
+      font-weight: 500;
+      color: var(--text-primary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .panel-tool-dur {
       font-size: 11px;
       color: var(--text-tertiary);
+      font-family: var(--font-mono);
+      flex-shrink: 0;
+    }
+
+    .no-agent-idle {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 14px 16px;
+      background: var(--bg-surface-warm);
+      border: 1px solid var(--border-light);
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      color: var(--text-tertiary);
+    }
+    .idle-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent-green-muted);
+    }
+
+    /* ── Pipeline Track (vertical) ── */
+    .pipeline-track {
+      display: flex;
+      flex-direction: column;
+      padding-left: 4px;
+    }
+    .pipeline-node {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 4px 0;
+    }
+    .pipeline-node-dot {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: all 0.3s;
+    }
+    .node-completed .pipeline-node-dot {
+      background: var(--accent-success);
+      color: white;
+    }
+    .node-running .pipeline-node-dot {
+      background: transparent;
+      border: 2px solid var(--accent-orange);
+    }
+    .node-pending .pipeline-node-dot {
+      background: var(--bg-surface-subtle);
+      border: 1.5px solid var(--border-medium);
+    }
+    .node-spinner {
+      width: 10px;
+      height: 10px;
+      border: 1.5px solid rgba(232, 115, 74, 0.25);
+      border-top-color: var(--accent-orange);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    .pipeline-node-label {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      flex: 1;
+    }
+    .node-completed .pipeline-node-label {
+      color: var(--text-primary);
+    }
+    .node-running .pipeline-node-label {
+      color: var(--accent-orange);
+      font-weight: 600;
+    }
+    .pipeline-node-dur {
+      font-size: 10px;
+      color: var(--text-tertiary);
+      font-family: var(--font-mono);
+    }
+    .pipeline-connector {
+      width: 2px;
+      height: 12px;
+      margin-left: 8px;
+      background: var(--border-medium);
+      border-radius: 1px;
+      transition: background 0.3s;
+    }
+    .connector-done {
+      background: var(--accent-success);
     }
 
     .entity-tags {
@@ -973,15 +1464,65 @@ interface Conversation {
       font-family: var(--font-mono);
     }
 
-    .mini-graph {
-      padding: 12px;
-      background: var(--bg-surface-warm);
-      border: 1px solid var(--border-light);
-      border-radius: var(--radius-sm);
+    /* ═══ Animations ═══ */
+    @keyframes msgSlideIn {
+      from {
+        opacity: 0;
+        transform: translateY(12px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
     }
-    .mini-graph svg {
-      width: 100%;
-      height: auto;
+
+    @keyframes toolSlideIn {
+      from {
+        opacity: 0;
+        transform: translateX(-8px);
+      }
+      to {
+        opacity: 1;
+        transform: translateX(0);
+      }
+    }
+
+    @keyframes checkPop {
+      from {
+        opacity: 0;
+        transform: scale(0.5);
+      }
+      to {
+        opacity: 1;
+        transform: scale(1);
+      }
+    }
+
+    @keyframes badgeFadeIn {
+      from {
+        opacity: 0;
+        transform: translateX(-6px);
+      }
+      to {
+        opacity: 1;
+        transform: translateX(0);
+      }
+    }
+
+    @keyframes subtlePulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    @keyframes panelSlideIn {
+      from {
+        opacity: 0;
+        transform: translateX(20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateX(0);
+      }
     }
 
     /* ═══ Responsive ═══ */
@@ -997,12 +1538,75 @@ interface Conversation {
   `]
 })
 export class ChatComponent {
+    private readonly chat = inject(ChatService);
+    private readonly zone = inject(NgZone);
+
+    // ── Delegated state from ChatService ──
+    messages = this.chat.messages;
+    isStreaming = this.chat.isStreaming;
+    agentPipeline = this.chat.agentPipelineWithDuration;
+    currentGraphStats = this.chat.graphStats;
+    error = this.chat.error;
+    conversations = this.chat.conversations;
+
+    // ── Local UI state ──
     sidebarCollapsed = signal(false);
     statePanelOpen = signal(true);
+    isInputFocused = signal(false);
     inputText = '';
     searchQuery = '';
+    expandedSteps = signal<Set<string>>(new Set());
+
+    // ── Auto-scroll state ──
+    private userScrolledUp = false;
+    private streamStartTime = 0;
+    private elapsedTimer: ReturnType<typeof setInterval> | null = null;
+    streamElapsed = signal('0s');
 
     @ViewChild('messagesContainer') messagesContainer!: ElementRef;
+
+    /** Auto-scroll effect: fires whenever messages change while streaming */
+    private autoScrollEffect = effect(() => {
+        // Touch reactive signals so the effect re-runs
+        this.messages();
+        const streaming = this.isStreaming();
+
+        if (streaming && !this.userScrolledUp) {
+            // Use requestAnimationFrame so the DOM has rendered the new content
+            requestAnimationFrame(() => this.scrollToBottom());
+        }
+
+        // Start/stop the elapsed timer
+        if (streaming && !this.elapsedTimer) {
+            this.streamStartTime = Date.now();
+            this.streamElapsed.set('0s');
+            this.zone.runOutsideAngular(() => {
+                this.elapsedTimer = setInterval(() => {
+                    const secs = Math.floor((Date.now() - this.streamStartTime) / 1000);
+                    this.zone.run(() => this.streamElapsed.set(secs < 60 ? `${secs}s` : `${Math.floor(secs / 60)}m ${secs % 60}s`));
+                }, 1000);
+            });
+        }
+        if (!streaming && this.elapsedTimer) {
+            clearInterval(this.elapsedTimer);
+            this.elapsedTimer = null;
+        }
+    });
+
+    /** Track user scroll to pause auto-scroll when they scroll up */
+    onMessagesScroll() {
+        const el = this.messagesContainer?.nativeElement;
+        if (!el) return;
+        // If the user is within 80px of the bottom, re-enable auto-scroll
+        const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+        this.userScrolledUp = !atBottom;
+    }
+
+    private scrollToBottom() {
+        const el = this.messagesContainer?.nativeElement;
+        if (!el) return;
+        el.scrollTop = el.scrollHeight;
+    }
 
     suggestions = [
         'Map AI research to cognitive science',
@@ -1011,75 +1615,14 @@ export class ChatComponent {
         'Trace the evolution of neural architectures',
     ];
 
-    conversations = signal<Conversation[]>([
-        { id: 1, title: 'Renewable Energy Technologies', preview: '47 nodes, 83 edges constructed', timestamp: '2m', active: true },
-        { id: 2, title: 'ML & Cognitive Science', preview: 'Research phase complete', timestamp: '1h', active: false },
-        { id: 3, title: 'Programming Paradigms', preview: '12 entities extracted', timestamp: '3h', active: false },
-        { id: 4, title: 'Neural Architecture History', preview: 'Intent parsed', timestamp: '1d', active: false },
-    ]);
-
-    messages = signal<ChatMessage[]>([
-        {
-            id: 1,
-            role: 'user',
-            content: 'Map the relationships between renewable energy technologies and their environmental impacts across different deployment regions.',
-            timestamp: '10:42 AM'
-        },
-        {
-            id: 2,
-            role: 'assistant',
-            content: 'I\'ll construct a knowledge graph mapping renewable energy technologies to their environmental impacts. Let me orchestrate the agent pipeline for this analysis.',
-            timestamp: '10:42 AM',
-            agentSteps: [
-                { agent: 'Intent Analyzer', status: 'completed', description: 'Parsed domain: Energy & Environment, scope: global regions', duration: '0.8s' },
-                { agent: 'Research Agent', status: 'completed', description: 'Analyzed 24 sources across academic papers and policy documents', duration: '3.2s', tool: 'web_search' },
-                { agent: 'Entity Extractor', status: 'completed', description: 'Extracted 47 unique entities: technologies, impacts, regions', duration: '2.1s', tool: 'ner_pipeline' },
-                { agent: 'Relationship Builder', status: 'running', description: 'Constructing typed edges between entities...', tool: 'graph_builder' },
-                { agent: 'Validator', status: 'pending', description: 'Awaiting relationship construction' },
-            ],
-            graphStats: { nodes: 47, edges: 83, clusters: 6 }
-        },
-        {
-            id: 3,
-            role: 'user',
-            content: 'Can you focus specifically on solar and wind energy? I want to understand their comparative lifecycle impacts.',
-            timestamp: '10:45 AM'
-        },
-        {
-            id: 4,
-            role: 'assistant',
-            content: 'Narrowing the graph construction to solar and wind energy lifecycle analysis. I\'m re-routing the research agent to focus on comparative lifecycle assessment studies.',
-            timestamp: '10:45 AM',
-            agentSteps: [
-                { agent: 'Intent Refiner', status: 'completed', description: 'Scope refined: solar vs wind, lifecycle analysis focus', duration: '0.4s' },
-                { agent: 'Research Agent', status: 'completed', description: 'Found 18 lifecycle assessment studies for solar/wind', duration: '2.8s', tool: 'academic_search' },
-                { agent: 'Entity Extractor', status: 'running', description: 'Extracting lifecycle phases, environmental metrics...', tool: 'ner_pipeline' },
-                { agent: 'Graph Merger', status: 'pending', description: 'Will merge with existing graph' },
-            ]
+    recentEntities = computed(() => {
+        const msgs = this.messages();
+        const last = [...msgs].reverse().find(m => m.role === 'assistant');
+        if (last?.agentSteps?.length) {
+            return last.agentSteps.map(s => s.agent);
         }
-    ]);
-
-    currentGraphStats = signal({
-        nodes: 47,
-        edges: 83,
-        clusters: 6,
-        confidence: 87
+        return [];
     });
-
-    agentPipeline = signal([
-        { name: 'Intent Analyzer', status: 'completed', statusText: 'Done — 2 intents parsed' },
-        { name: 'Research Agent', status: 'completed', statusText: 'Done — 42 sources' },
-        { name: 'Entity Extractor', status: 'running', statusText: 'Processing batch 3/4...' },
-        { name: 'Relationship Builder', status: 'pending', statusText: 'Waiting for entities' },
-        { name: 'Validator', status: 'idle', statusText: 'Idle' },
-        { name: 'Graph Compiler', status: 'idle', statusText: 'Idle' },
-    ]);
-
-    recentEntities = [
-        'Solar PV', 'Wind Turbine', 'CO₂ Emissions',
-        'Land Use', 'Lifecycle', 'EROI',
-        'Offshore', 'Grid Parity', 'Recycling'
-    ];
 
     filteredConversations = computed(() => {
         const q = this.searchQuery.toLowerCase();
@@ -1093,17 +1636,47 @@ export class ChatComponent {
         return this.conversations().find(c => c.active);
     });
 
-    selectConversation(id: number) {
+    /** The currently running agent for the streaming indicator */
+    currentStreamingAgent = computed(() => {
+        const msgs = this.messages();
+        const last = [...msgs].reverse().find(m => m.role === 'assistant' && m.isStreaming);
+        return last?.activeAgent ?? null;
+    });
+
+    /** Count of tool invocations in the current streaming message */
+    currentStreamingToolCount = computed(() => {
+        const msgs = this.messages();
+        const last = [...msgs].reverse().find(m => m.role === 'assistant' && m.isStreaming);
+        return last?.toolInvocations?.length ?? 0;
+    });
+
+    /** The currently running agent info for the side panel */
+    runningAgent = computed(() => {
+        const steps = this.agentPipeline();
+        const running = steps.find(s => s.status === 'running');
+        if (!running) return null;
+        return {
+            agent: running.agent,
+            displayName: this.agentDisplayName(running.agent),
+            description: running.description,
+        };
+    });
+
+    /** Tool invocations for the active streaming message (for panel) */
+    activeToolInvocations = computed(() => {
+        const msgs = this.messages();
+        const last = [...msgs].reverse().find(m => m.role === 'assistant' && m.isStreaming);
+        return last?.toolInvocations ?? [];
+    });
+
+    selectConversation(id: string) {
         this.conversations.update(convs =>
             convs.map(c => ({ ...c, active: c.id === id }))
         );
     }
 
     startNewChat() {
-        this.messages.set([]);
-        this.conversations.update(convs =>
-            convs.map(c => ({ ...c, active: false }))
-        );
+        this.chat.startNewChat();
     }
 
     useSuggestion(text: string) {
@@ -1120,32 +1693,39 @@ export class ChatComponent {
 
     sendMessage() {
         const text = this.inputText.trim();
-        if (!text) return;
-
-        const newMsg: ChatMessage = {
-            id: this.messages().length + 1,
-            role: 'user',
-            content: text,
-            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-        };
-
-        this.messages.update(msgs => [...msgs, newMsg]);
+        if (!text || this.isStreaming()) return;
         this.inputText = '';
-
-        // Simulate agent response after a short delay
-        setTimeout(() => {
-            const agentMsg: ChatMessage = {
-                id: this.messages().length + 1,
-                role: 'assistant',
-                content: 'Processing your request through the multi-agent pipeline. I\'ll analyze the domain and begin knowledge extraction.',
-                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                agentSteps: [
-                    { agent: 'Intent Analyzer', status: 'completed', description: 'Query parsed and decomposed', duration: '0.5s' },
-                    { agent: 'Research Agent', status: 'running', description: 'Searching knowledge bases...', tool: 'web_search' },
-                    { agent: 'Entity Extractor', status: 'pending', description: 'Awaiting research results' },
-                ]
-            };
-            this.messages.update(msgs => [...msgs, agentMsg]);
-        }, 800);
+        this.userScrolledUp = false;
+        this.chat.sendMessage(text);
+        requestAnimationFrame(() => this.scrollToBottom());
     }
+
+    cancelStream() {
+        this.chat.cancelStream();
+    }
+
+    dismissError() {
+        this.chat.error.set(null);
+    }
+
+    agentDisplayName(agent: string): string {
+        return AGENT_DISPLAY_NAMES[agent] ?? agent;
+    }
+
+    toggleStepsSummary(msgId: string) {
+        this.expandedSteps.update(set => {
+            const next = new Set(set);
+            if (next.has(msgId)) {
+                next.delete(msgId);
+            } else {
+                next.add(msgId);
+            }
+            return next;
+        });
+    }
+
+    completedStepCount(steps: { status: string }[]): number {
+        return steps.filter(s => s.status === 'completed').length;
+    }
+
 }

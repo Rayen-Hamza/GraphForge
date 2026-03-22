@@ -15,6 +15,7 @@ class CreateSessionResponse(BaseModel):
 class RunAgentRequest(BaseModel):
     user_id: str
     message: str
+    streaming: bool = True
 
 
 class SessionStateResponse(BaseModel):

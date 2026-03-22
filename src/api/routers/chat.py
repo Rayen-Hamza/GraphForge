@@ -1,18 +1,10 @@
+import asyncio
 import json
 import uuid
 import logging
-import base64
-from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
-
-
-class _BytesEncoder(json.JSONEncoder):
-    def default(self, o: Any) -> Any:
-        if isinstance(o, bytes):
-            return base64.b64encode(o).decode("utf-8")
-        return super().default(o)
 
 from services.runner import create_session, run_agent_stream, get_session_state
 from schemas.agent import (
@@ -23,6 +15,8 @@ from schemas.agent import (
 )
 
 logger = logging.getLogger(__name__)
+
+HEARTBEAT_INTERVAL_S = 15
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
@@ -39,33 +33,69 @@ async def post_session(req: CreateSessionRequest):
 async def run_session(session_id: str, req: RunAgentRequest):
     """Run the agent for a given message and stream events via SSE.
 
-    Each SSE event is a JSON object with:
-    - author: the agent/tool that produced the event
-    - content: the event content (may be None for non-text events)
-    - partial: whether this is a partial streaming chunk
-    - is_final: whether this is the final response in the turn
+    Events are full ADK Event objects serialised as JSON (camelCase keys,
+    nulls excluded) — the same format used by the ADK dev-UI.
+
+    A heartbeat comment is sent every 15 s of inactivity to keep the
+    connection alive through proxies and prevent browser timeouts.
     """
     async def event_generator():
-        try:
-            async for event in run_agent_stream(session_id, req.user_id, req.message):
-                content_data = None
-                if event.content:
-                    try:
-                        content_data = event.content.model_dump()
-                    except Exception:
-                        content_data = str(event.content)
+        queue: asyncio.Queue = asyncio.Queue()
 
-                data = {
-                    "author": event.author,
-                    "content": content_data,
-                    "partial": getattr(event, "partial", False),
-                    "is_final": event.is_final_response(),
-                }
-                yield f"data: {json.dumps(data, cls=_BytesEncoder)}\n\n"
-        except Exception as e:
-            logger.error(f"Error streaming agent events: {e}")
-            yield f"data: {json.dumps({'error': str(e)})}\n\n"
+        async def _consume():
+            """Run the agent stream in a background task, forwarding events."""
+            try:
+                async for event in run_agent_stream(
+                    session_id, req.user_id, req.message, streaming=req.streaming
+                ):
+                    await queue.put(("event", event))
+            except Exception as exc:
+                await queue.put(("error", exc))
+            finally:
+                await queue.put(("done", None))
+
+        task = asyncio.create_task(_consume())
+        try:
+            while True:
+                try:
+                    kind, payload = await asyncio.wait_for(
+                        queue.get(), timeout=HEARTBEAT_INTERVAL_S
+                    )
+                except asyncio.TimeoutError:
+                    # No event for 15 s — send SSE comment to keep alive
+                    yield ": heartbeat\n\n"
+                    continue
+
+                if kind == "done":
+                    break
+
+                if kind == "error":
+                    logger.error(f"Error streaming agent events: {payload}")
+                    yield f"data: {json.dumps({'error': str(payload)})}\n\n"
+                    break
+
+                event = payload
+                # Split events with both content and artifact deltas
+                events_to_stream = [event]
+                if (
+                    event.actions.artifact_delta
+                    and event.content
+                    and event.content.parts
+                ):
+                    content_event = event.model_copy(deep=True)
+                    content_event.actions.artifact_delta = {}
+                    artifact_event = event.model_copy(deep=True)
+                    artifact_event.content = None
+                    events_to_stream = [content_event, artifact_event]
+
+                for evt in events_to_stream:
+                    sse_payload = evt.model_dump_json(
+                        exclude_none=True,
+                        by_alias=True,
+                    )
+                    yield f"data: {sse_payload}\n\n"
         finally:
+            task.cancel()
             yield "data: [DONE]\n\n"
 
     return StreamingResponse(
