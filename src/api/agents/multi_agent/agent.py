@@ -27,7 +27,7 @@ full_workflow_agent = LlmAgent(
         2. file_suggestion_agent -- requires approved user goals to make suggestions about what files to use
         3. schema_proposal_agent -- requires approved file suggestions to propose a graph schema with construction rules
         4. graph_construction_agent -- requires an approved graph schema design
-        5. graphrag_agent -- used to interact with the knowledge graph. only available if 'get_physical_schema' tool shows that a graph exists
+        5. graphrag_agent -- used to investigate and retrieve information from the knowledge graph using multi-hop traversal. only available if 'get_physical_schema' tool shows that a graph exists
         """,
     sub_agents=[
         user_intent_agent,

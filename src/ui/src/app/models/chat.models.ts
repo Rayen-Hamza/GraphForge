@@ -120,7 +120,7 @@ export const AGENT_PIPELINE_ORDER = [
   'file_suggestion_agent_v3',
   'schema_proposal_agent_v1',
   'graph_construction_agent_v1',
-  'graphrag_agent_v1',
+  'graphrag_agent_v2',
 ] as const;
 
 /** Display-friendly labels for agent names */
@@ -132,6 +132,7 @@ export const AGENT_DISPLAY_NAMES: Record<string, string> = {
   'schema_refinement_loop': 'Schema Refinement',
   'graph_construction_agent_v1': 'Graph Constructor',
   'graphrag_agent_v1': 'GraphRAG',
+  'graphrag_agent_v2': 'GraphRAG',
 };
 
 /** Orchestrator agent name — its text is hand-off chatter, not user-facing */
