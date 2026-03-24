@@ -21,6 +21,22 @@ export interface SessionStateResponse {
   state: Record<string, unknown>;
 }
 
+export interface SessionSummary {
+  session_id: string;
+  user_id: string;
+  last_update_time: number;
+  state: Record<string, unknown>;
+}
+
+export interface ListSessionsResponse {
+  sessions: SessionSummary[];
+}
+
+export interface SessionEventsResponse {
+  session_id: string;
+  events: SSEAgentEvent[];
+}
+
 // ── SSE event payloads (full ADK Event, camelCase via by_alias) ──
 
 export interface SSEAgentEvent {
@@ -47,6 +63,8 @@ export interface SSEAgentEvent {
   };
   /** Invocation identifier for this turn. */
   invocationId?: string;
+  /** Timestamp of the event (seconds since epoch). Present in stored events. */
+  timestamp?: number;
 }
 
 export interface SSEErrorEvent {

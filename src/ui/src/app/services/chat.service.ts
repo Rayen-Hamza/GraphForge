@@ -9,6 +9,7 @@ import {
   ToolInvocation,
   GraphStats,
   SSEAgentEvent,
+  SessionSummary,
   AGENT_PIPELINE_ORDER,
   AGENT_DISPLAY_NAMES,
   ORCHESTRATOR_AGENT,
@@ -25,6 +26,10 @@ export class ChatService {
   readonly conversations = signal<Conversation[]>([]);
   readonly isStreaming = signal(false);
   readonly error = signal<string | null>(null);
+
+  constructor() {
+    this.loadConversations();
+  }
 
   readonly agentPipeline = signal<AgentStep[]>(
     AGENT_PIPELINE_ORDER.map((name) => ({
@@ -82,6 +87,7 @@ export class ChatService {
           this.api.createSession({ user_id: this.userId() }),
         );
         this.sessionId.set(resp.session_id);
+        this.loadConversations();
       } catch (err) {
         this.error.set('Failed to create session. Is the backend running?');
         return;
@@ -149,6 +155,169 @@ export class ChatService {
       }
     } catch {
       // non-critical, silently ignore
+    }
+  }
+
+  /** Load sessions from the backend and populate the conversations list. */
+  async loadConversations(): Promise<void> {
+    try {
+      const resp = await firstValueFrom(
+        this.api.listSessions(this.userId()),
+      );
+      const convs: Conversation[] = resp.sessions.map((s: SessionSummary) => {
+        const firstMsg = (s.state?.['last_user_message'] as string) ?? '';
+        return {
+          id: s.session_id,
+          title: firstMsg.slice(0, 50) || `Session ${s.session_id.slice(0, 8)}`,
+          preview: firstMsg.slice(0, 80) || 'No messages yet',
+          timestamp: s.last_update_time
+            ? new Date(s.last_update_time * 1000).toLocaleDateString()
+            : '',
+          active: s.session_id === this.sessionId(),
+        };
+      });
+      this.conversations.set(convs);
+    } catch {
+      // non-critical — sidebar stays empty
+    }
+  }
+
+  /** Switch to an existing conversation by session id. */
+  async selectConversation(sessionId: string): Promise<void> {
+    this.cancelStream();
+    this.sessionId.set(sessionId);
+    this.messages.set([]);
+    this.error.set(null);
+    this.resetPipeline();
+
+    // Mark the selected conversation as active
+    this.conversations.update((convs) =>
+      convs.map((c) => ({ ...c, active: c.id === sessionId })),
+    );
+
+    // Load the conversation history from the backend
+    await this.loadSessionMessages(sessionId);
+    await this.refreshSessionState();
+  }
+
+  /** Fetch events for a session and convert them to ChatMessages. */
+  async loadSessionMessages(sessionId: string): Promise<void> {
+    try {
+      const resp = await firstValueFrom(
+        this.api.getSessionEvents(sessionId, this.userId()),
+      );
+
+      const messages: ChatMessage[] = [];
+      let currentAssistantMsg: ChatMessage | null = null;
+
+      for (const event of resp.events) {
+        if (event.author === 'user') {
+          // Finalize any in-progress assistant message
+          if (currentAssistantMsg) {
+            messages.push(currentAssistantMsg);
+            currentAssistantMsg = null;
+          }
+          // Create user message
+          const text = event.content?.parts
+            ?.filter((p: any) => p.text)
+            .map((p: any) => p.text)
+            .join('') ?? '';
+          if (text) {
+            messages.push({
+              id: crypto.randomUUID(),
+              role: 'user',
+              content: text,
+              timestamp: event.timestamp
+                ? new Date(event.timestamp * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                : '',
+            });
+          }
+          continue;
+        }
+
+        // Skip orchestrator hand-off chatter
+        const isOrchestrator = event.author === ORCHESTRATOR_AGENT;
+        const hasTextContent = event.content?.parts?.some(
+          (p: any) => p.text && !p.functionCall && !p.function_call,
+        ) ?? false;
+        const hasFunctionCall = event.content?.parts?.some(
+          (p: any) => p.functionCall || p.function_call,
+        ) ?? false;
+        const hasFunctionResponse = event.content?.parts?.some(
+          (p: any) => p.functionResponse || p.function_response,
+        ) ?? false;
+        if (isOrchestrator && !hasTextContent && !hasFunctionCall && !hasFunctionResponse) {
+          continue;
+        }
+
+        // Create or continue assistant message
+        if (!currentAssistantMsg) {
+          currentAssistantMsg = {
+            id: crypto.randomUUID(),
+            role: 'assistant',
+            content: '',
+            timestamp: event.timestamp
+              ? new Date(event.timestamp * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+              : '',
+            toolInvocations: [],
+            contentParts: [],
+          };
+        }
+
+        // Process function calls
+        const functionCalls = event.content?.parts?.filter(
+          (p: any) => p.functionCall || p.function_call,
+        ) ?? [];
+        for (const part of functionCalls) {
+          const fc = (part as any).functionCall ?? (part as any).function_call;
+          const invocation: ToolInvocation = {
+            id: crypto.randomUUID(),
+            agent: event.author,
+            name: fc.name,
+            args: fc.args ?? {},
+            status: 'calling',
+            startTime: (event.timestamp ?? 0) * 1000,
+            collapsed: true,
+          };
+          currentAssistantMsg.toolInvocations!.push(invocation);
+          currentAssistantMsg.contentParts!.push({ type: 'tool', toolId: invocation.id });
+        }
+
+        // Process function responses — mark matching tool invocations as success
+        const functionResponses = event.content?.parts?.filter(
+          (p: any) => p.functionResponse || p.function_response,
+        ) ?? [];
+        for (const part of functionResponses) {
+          const fr = (part as any).functionResponse ?? (part as any).function_response;
+          const inv = currentAssistantMsg.toolInvocations!.find(
+            (i) => i.name === fr.name && i.status === 'calling',
+          );
+          if (inv) {
+            inv.status = 'success';
+            inv.response = fr.response;
+            inv.endTime = (event.timestamp ?? 0) * 1000;
+          }
+        }
+
+        // Process text content
+        const textContent = event.content?.parts
+          ?.filter((p: any) => p.text && !p.functionCall && !p.function_call)
+          .map((p: any) => p.text)
+          .join('') ?? '';
+        if (textContent) {
+          currentAssistantMsg.content += textContent;
+          currentAssistantMsg.contentParts!.push({ type: 'text', text: textContent });
+        }
+      }
+
+      // Finalize the last assistant message
+      if (currentAssistantMsg) {
+        messages.push(currentAssistantMsg);
+      }
+
+      this.messages.set(messages);
+    } catch {
+      this.error.set('Failed to load conversation history');
     }
   }
 
@@ -360,6 +529,7 @@ export class ChatService {
 
     // Refresh graph stats from session state
     this.refreshSessionState();
+    this.loadConversations();
   }
 
   // ── Pipeline helpers ──

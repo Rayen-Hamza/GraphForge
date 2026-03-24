@@ -6,7 +6,9 @@ import { environment } from '../../environments/environment';
 import {
   CreateSessionRequest,
   CreateSessionResponse,
+  ListSessionsResponse,
   RunAgentRequest,
+  SessionEventsResponse,
   SessionStateResponse,
   SSEAgentEvent,
 } from '../models/chat.models';
@@ -16,11 +18,27 @@ export class ApiService {
   private readonly http = inject(HttpClient);
   private readonly baseUrl = environment.apiBaseUrl;
 
+  /** List all sessions for a user. */
+  listSessions(userId: string): Observable<ListSessionsResponse> {
+    return this.http.get<ListSessionsResponse>(
+      `${this.baseUrl}/chat/sessions`,
+      { params: { user_id: userId } },
+    );
+  }
+
   /** Create a new agent session. */
   createSession(req: CreateSessionRequest): Observable<CreateSessionResponse> {
     return this.http.post<CreateSessionResponse>(
       `${this.baseUrl}/chat/sessions`,
       req,
+    );
+  }
+
+  /** Get the conversation history (events) for a session. */
+  getSessionEvents(sessionId: string, userId: string): Observable<SessionEventsResponse> {
+    return this.http.get<SessionEventsResponse>(
+      `${this.baseUrl}/chat/sessions/${sessionId}/events`,
+      { params: { user_id: userId } },
     );
   }
 
