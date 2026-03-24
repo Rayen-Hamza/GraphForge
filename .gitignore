@@ -1,2 +1,5 @@
 .*
 *.pyc
+
+# Session database (SQLite)
+src/api/data/*.db
