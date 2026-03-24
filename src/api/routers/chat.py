@@ -6,11 +6,13 @@ import logging
 from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
 
-from services.runner import create_session, run_agent_stream, get_session_state
+from services.runner import create_session, run_agent_stream, get_session_state, get_session_events, list_sessions
 from schemas.agent import (
     CreateSessionRequest,
     CreateSessionResponse,
+    ListSessionsResponse,
     RunAgentRequest,
+    SessionEventsResponse,
     SessionStateResponse,
 )
 
@@ -19,6 +21,13 @@ logger = logging.getLogger(__name__)
 HEARTBEAT_INTERVAL_S = 15
 
 router = APIRouter(prefix="/chat", tags=["chat"])
+
+
+@router.get("/sessions", response_model=ListSessionsResponse)
+async def get_sessions(user_id: str):
+    """List all sessions for a given user."""
+    sessions = await list_sessions(user_id)
+    return ListSessionsResponse(sessions=sessions)
 
 
 @router.post("/sessions", response_model=CreateSessionResponse)
@@ -106,6 +115,13 @@ async def run_session(session_id: str, req: RunAgentRequest):
             "X-Accel-Buffering": "no",
         }
     )
+
+
+@router.get("/sessions/{session_id}/events", response_model=SessionEventsResponse)
+async def get_session_events_endpoint(session_id: str, user_id: str):
+    """Return the conversation history (non-partial events) for a session."""
+    events = await get_session_events(user_id, session_id)
+    return SessionEventsResponse(session_id=session_id, events=events)
 
 
 @router.get("/sessions/{session_id}", response_model=SessionStateResponse)

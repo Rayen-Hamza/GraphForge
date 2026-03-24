@@ -1,7 +1,8 @@
 """Infra/database helpers (placeholder).
 
-This file provides a simple place to wire up DB connections later.
-Currently it keeps things lightweight and in-memory for the scaffold.
+Session persistence is handled by DatabaseSessionService in services/runner.py,
+which manages its own SQLAlchemy async engine. This file remains as a hook for
+any future non-session database needs.
 """
 
 def get_connection():
