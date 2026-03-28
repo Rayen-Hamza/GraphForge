@@ -39,7 +39,7 @@ export class ChatInterfaceComponent implements OnInit, OnDestroy {
     conversations = this.chat.conversations;
 
     // ── Local UI state ──
-    statePanelOpen = signal(true);
+    statePanelOpen = signal(window.innerWidth > 1024);
     isInputFocused = signal(false);
     inputText = '';
     expandedSteps = signal<Set<string>>(new Set());
@@ -190,6 +190,10 @@ export class ChatInterfaceComponent implements OnInit, OnDestroy {
 
     cancelStream() {
         this.chat.cancelStream();
+    }
+
+    toggleMobileSidebar() {
+        this.chat.mobileSidebarOpen.update(v => !v);
     }
 
     dismissError() {

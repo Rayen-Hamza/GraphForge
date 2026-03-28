@@ -26,6 +26,7 @@ export class ChatService {
   readonly conversations = signal<Conversation[]>([]);
   readonly isStreaming = signal(false);
   readonly error = signal<string | null>(null);
+  readonly mobileSidebarOpen = signal(false);
 
   constructor() {
     this.loadConversations();

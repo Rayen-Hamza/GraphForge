@@ -1,7 +1,31 @@
-    /* ═══ Layout ═══ */
-    .chat-layout {
-      display: flex;
-      height: 100vh;
-      background: var(--bg-app);
-      overflow: hidden;
-    }
+/* ═══ Layout ═══ */
+.chat-layout {
+  display: flex;
+  height: 100vh;
+  height: 100dvh;
+  background: var(--bg-app);
+  overflow: hidden;
+}
+
+/* ═══ Mobile Sidebar Backdrop ═══ */
+.mobile-backdrop {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .mobile-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(26, 47, 30, 0.35);
+    z-index: 150;
+    animation: backdropFadeIn 0.25s ease both;
+    -webkit-backdrop-filter: blur(2px);
+    backdrop-filter: blur(2px);
+  }
+
+  @keyframes backdropFadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+}

@@ -42,11 +42,24 @@
       background: rgba(255, 255, 255, 0.6);
       backdrop-filter: blur(12px);
     }
+    .topbar-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+      flex: 1;
+    }
     .chat-title {
       font-size: 16px;
       font-weight: 600;
       margin: 0;
       letter-spacing: -0.01em;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .mobile-menu-btn {
+      display: none;
     }
     .chat-meta {
       font-size: 12px;
@@ -1103,12 +1116,179 @@
       }
     }
 
-    /* ═══ Responsive ═══ */
-    @media (max-width: 1024px) {
-      .state-panel { display: none; }
+    /* ═══ Panel Backdrop ═══ */
+    .panel-backdrop {
+      display: none;
     }
+
+    /* ═══ Responsive ═══ */
+
+    /* Tablet: state panel becomes overlay */
+    @media (max-width: 1024px) {
+      .state-panel {
+        position: fixed;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        width: 320px;
+        z-index: 100;
+        box-shadow: -8px 0 32px rgba(26, 47, 30, 0.12);
+      }
+      .panel-backdrop {
+        display: block;
+        position: fixed;
+        inset: 0;
+        background: rgba(26, 47, 30, 0.2);
+        z-index: 90;
+        animation: fadeIn 0.2s ease both;
+      }
+    }
+
+    /* Mobile */
     @media (max-width: 768px) {
-      .chat-topbar { padding: 12px 16px; }
-      .chat-messages { padding: 16px; }
-      .chat-input-area { padding: 12px 16px 16px; }
+      .mobile-menu-btn {
+        display: flex;
+      }
+
+      .chat-topbar {
+        padding: 12px 16px;
+        gap: 8px;
+      }
+      .chat-title {
+        font-size: 14px;
+      }
+
+      .chat-messages {
+        padding: 16px;
+      }
+
+      .message {
+        max-width: 100%;
+        gap: 10px;
+        margin-bottom: 16px;
+      }
+      .msg-avatar-chat {
+        width: 30px;
+        height: 30px;
+        font-size: 11px;
+      }
+      .msg-avatar-chat svg {
+        width: 14px;
+        height: 14px;
+      }
+      .msg-header {
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+      .msg-content-text {
+        font-size: 14px;
+      }
+
+      .empty-state h3 {
+        font-size: 20px;
+      }
+      .empty-state p {
+        font-size: 13px;
+        padding: 0 8px;
+      }
+      .suggestion-chips {
+        max-width: 100%;
+        padding: 0 4px;
+      }
+      .chip {
+        padding: 10px 16px;
+        font-size: 13px;
+      }
+
+      .chat-input-area {
+        padding: 12px 12px 16px;
+        padding-bottom: max(16px, env(safe-area-inset-bottom));
+      }
+      .input-container {
+        padding: 10px 12px;
+      }
+      .input-container textarea {
+        font-size: 16px; /* prevent iOS zoom on focus */
+      }
+      .input-hint {
+        display: none;
+      }
+      .send-btn {
+        width: 40px;
+        height: 40px;
+      }
+
+      .streaming-indicator {
+        padding: 8px 16px;
+        gap: 10px;
+      }
+      .error-banner {
+        padding: 8px 16px;
+        font-size: 12px;
+      }
+
+      .graph-stats-inline {
+        gap: 12px;
+        padding: 10px 12px;
+      }
+      .gs-value {
+        font-size: 16px;
+      }
+
+      .state-panel {
+        width: 100%;
+        max-width: 340px;
+      }
+
+      .markdown-body pre {
+        padding: 12px;
+        font-size: 0.82em;
+      }
+      .markdown-body table {
+        display: block;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+      }
+
+      .tl-name {
+        max-width: 200px;
+      }
+
+      .active-agent-badge {
+        font-size: 10px;
+        padding: 2px 8px 2px 6px;
+      }
+    }
+
+    /* Small mobile */
+    @media (max-width: 480px) {
+      .chat-topbar {
+        padding: 10px 12px;
+      }
+      .chat-messages {
+        padding: 12px;
+      }
+      .message {
+        gap: 8px;
+      }
+
+      .suggestion-chips {
+        flex-direction: column;
+      }
+      .chip {
+        width: 100%;
+        text-align: center;
+      }
+
+      .streaming-indicator {
+        padding: 8px 12px;
+        gap: 8px;
+      }
+      .streaming-elapsed {
+        display: none;
+      }
+
+      .state-panel {
+        max-width: 100%;
+      }
     }

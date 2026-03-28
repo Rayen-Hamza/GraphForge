@@ -1,4 +1,7 @@
 <div class="chat-layout">
+  @if (chat.mobileSidebarOpen()) {
+    <div class="mobile-backdrop" (click)="chat.mobileSidebarOpen.set(false)"></div>
+  }
   <app-chat-sidebar />
   <router-outlet />
 </div>
