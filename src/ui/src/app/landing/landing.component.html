@@ -116,7 +116,7 @@
 <!-- ═══ FEATURES SECTION ═══ -->
 <section class="features" id="features">
   <div class="section-container">
-    <div class="section-header">
+    <div class="section-header reveal">
       <span class="section-tag">Capabilities</span>
       <h2 class="section-title">Intelligence at every layer</h2>
       <p class="section-subtitle">
@@ -124,8 +124,8 @@
       </p>
     </div>
 
-    <div class="features-grid">
-      <div class="feature-card">
+    <div class="features-grid reveal-stagger">
+      <div class="feature-card reveal">
         <div class="feature-icon-wrap">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
             <path d="M12 2a4 4 0 0 0-4 4v2a4 4 0 0 0 8 0V6a4 4 0 0 0-4-4z" stroke-linecap="round"/>
@@ -137,7 +137,7 @@
         <p>Natural language parsing that deconstructs complex queries into actionable research directives for specialized agents.</p>
       </div>
 
-      <div class="feature-card featured">
+      <div class="feature-card featured reveal">
         <div class="feature-icon-wrap">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
             <circle cx="12" cy="12" r="3"/>
@@ -155,7 +155,7 @@
         <p>A coordinated pipeline of research, extraction, validation, and construction agents — each specialized for maximum accuracy.</p>
       </div>
 
-      <div class="feature-card">
+      <div class="feature-card reveal">
         <div class="feature-icon-wrap">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
             <polygon points="12,2 20,7 20,17 12,22 4,17 4,7" stroke-linejoin="round"/>
@@ -168,7 +168,7 @@
         <p>Structured, queryable knowledge graphs with entities, relationships, and metadata — ready for downstream applications.</p>
       </div>
 
-      <div class="feature-card">
+      <div class="feature-card reveal">
         <div class="feature-icon-wrap">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
             <path d="M2 12h4l3-9 6 18 3-9h4" stroke-linecap="round" stroke-linejoin="round"/>
@@ -178,7 +178,7 @@
         <p>Watch agents think, decide, and build in real time. Every step, tool call, and decision is streamed to your interface live.</p>
       </div>
 
-      <div class="feature-card">
+      <div class="feature-card reveal">
         <div class="feature-icon-wrap">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
             <rect x="3" y="3" width="7" height="7" rx="1.5"/>
@@ -193,7 +193,7 @@
         <p>Plug in custom agents, data sources, and output formats. Built for extensibility from the ground up.</p>
       </div>
 
-      <div class="feature-card">
+      <div class="feature-card reveal">
         <div class="feature-icon-wrap">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
             <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/>
@@ -210,7 +210,7 @@
 <!-- ═══ HOW IT WORKS ═══ -->
 <section class="how-it-works" id="how-it-works">
   <div class="section-container">
-    <div class="section-header">
+    <div class="section-header reveal">
       <span class="section-tag">Process</span>
       <h2 class="section-title">From question to knowledge</h2>
       <p class="section-subtitle">
@@ -219,7 +219,7 @@
     </div>
 
     <div class="pipeline">
-      <div class="pipeline-step">
+      <div class="pipeline-step reveal">
         <div class="step-number">01</div>
         <div class="step-connector"></div>
         <div class="step-card">
@@ -231,7 +231,7 @@
         </div>
       </div>
 
-      <div class="pipeline-step">
+      <div class="pipeline-step reveal">
         <div class="step-number">02</div>
         <div class="step-connector"></div>
         <div class="step-card">
@@ -246,21 +246,36 @@
         </div>
       </div>
 
-      <div class="pipeline-step">
+      <div class="pipeline-step reveal">
         <div class="step-number">03</div>
         <div class="step-card">
           <h3>Knowledge Graph Built</h3>
           <p>A rich, structured knowledge graph emerges — complete with entities, typed relationships, confidence scores, and source attribution.</p>
           <div class="step-graph-preview">
-            <div class="mini-node n1">ML</div>
-            <div class="mini-node n2">NLP</div>
-            <div class="mini-node n3">Cognition</div>
-            <div class="mini-node n4">Neuroscience</div>
-            <svg class="mini-edges" viewBox="0 0 200 80">
-              <line x1="40" y1="30" x2="100" y2="20" stroke="var(--accent-green-light)" stroke-width="1.5" opacity="0.6"/>
-              <line x1="100" y1="20" x2="160" y2="35" stroke="var(--accent-green-light)" stroke-width="1.5" opacity="0.6"/>
-              <line x1="40" y1="30" x2="100" y2="60" stroke="var(--accent-green-light)" stroke-width="1.5" opacity="0.4"/>
-              <line x1="100" y1="60" x2="160" y2="35" stroke="var(--accent-green-light)" stroke-width="1.5" opacity="0.4"/>
+            <svg class="mini-graph" viewBox="0 0 340 86" fill="none">
+              <!-- Edges (drawn first, behind nodes) -->
+              <line x1="52" y1="38" x2="102" y2="22" class="graph-edge" stroke="var(--accent-green-light)" stroke-width="1.5" opacity="0.5"/>
+              <line x1="152" y1="22" x2="184" y2="52" class="graph-edge" stroke="var(--accent-green-light)" stroke-width="1.5" opacity="0.5"/>
+              <line x1="262" y1="52" x2="270" y2="32" class="graph-edge" stroke="var(--accent-green-light)" stroke-width="1.5" opacity="0.45"/>
+              <line x1="152" y1="22" x2="270" y2="32" class="graph-edge" stroke="var(--accent-green-light)" stroke-width="1.2" opacity="0.3"/>
+              <line x1="52" y1="42" x2="184" y2="54" class="graph-edge" stroke="var(--accent-green-light)" stroke-width="1.2" opacity="0.2"/>
+              <!-- Nodes -->
+              <g class="graph-node">
+                <rect x="8" y="28" width="44" height="22" rx="11" fill="var(--accent-primary)"/>
+                <text x="30" y="43" text-anchor="middle" fill="white" font-size="10" font-weight="600" font-family="'JetBrains Mono', monospace">ML</text>
+              </g>
+              <g class="graph-node">
+                <rect x="102" y="8" width="50" height="22" rx="11" fill="var(--accent-primary)"/>
+                <text x="127" y="23" text-anchor="middle" fill="white" font-size="10" font-weight="600" font-family="'JetBrains Mono', monospace">NLP</text>
+              </g>
+              <g class="graph-node">
+                <rect x="184" y="42" width="78" height="22" rx="11" fill="var(--accent-primary)"/>
+                <text x="223" y="57" text-anchor="middle" fill="white" font-size="10" font-weight="600" font-family="'JetBrains Mono', monospace">Cognition</text>
+              </g>
+              <g class="graph-node">
+                <rect x="270" y="18" width="62" height="22" rx="11" fill="var(--accent-primary)"/>
+                <text x="301" y="33" text-anchor="middle" fill="white" font-size="9.5" font-weight="600" font-family="'JetBrains Mono', monospace">Neurosci.</text>
+              </g>
             </svg>
           </div>
         </div>
@@ -272,7 +287,7 @@
 <!-- ═══ CTA SECTION ═══ -->
 <section class="cta-section">
   <div class="section-container">
-    <div class="cta-card">
+    <div class="cta-card reveal">
       <div class="cta-bg-pattern"></div>
       <h2>Ready to forge your knowledge graph?</h2>
       <p>Start a conversation with GraphForge's multi-agent system and watch intelligence unfold in real time.</p>
@@ -305,7 +320,7 @@
         <a href="#">GitHub</a>
         <a href="#">API Reference</a>
       </div>
-      <p class="footer-copy">© 2026 GraphForge. Intelligent knowledge construction.</p>
+      <p class="footer-copy">&copy; 2026 GraphForge. Intelligent knowledge construction.</p>
     </div>
   </div>
 </footer>
