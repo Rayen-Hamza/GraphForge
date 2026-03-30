@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="420" viewBox="0 0 1200 420" role="img" aria-label="GraphForge pipeline">
+  <defs>
+    <linearGradient id="panel" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#FFFFFF" />
+      <stop offset="100%" stop-color="#FAF8F5" />
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="420" fill="#F5F1EB" />
+  <text x="60" y="70" font-size="26" font-family="DM Sans, Segoe UI, Arial, sans-serif" fill="#1A2F1E" font-weight="700">Intent-to-Graph Pipeline</text>
+  <g font-family="DM Sans, Segoe UI, Arial, sans-serif" font-size="14" fill="#1A2F1E">
+    <rect x="70" y="120" width="190" height="90" rx="12" fill="url(#panel)" stroke="#D4DDD0" />
+    <text x="90" y="160">User Intent</text>
+    <text x="90" y="185" fill="#5A6B5E">Prompt ingestion</text>
+
+    <rect x="320" y="120" width="190" height="90" rx="12" fill="url(#panel)" stroke="#D4DDD0" />
+    <text x="340" y="160">Research Agent</text>
+    <text x="340" y="185" fill="#5A6B5E">Context gathering</text>
+
+    <rect x="570" y="120" width="190" height="90" rx="12" fill="url(#panel)" stroke="#D4DDD0" />
+    <text x="590" y="160">Extraction</text>
+    <text x="590" y="185" fill="#5A6B5E">Entities + relations</text>
+
+    <rect x="820" y="120" width="190" height="90" rx="12" fill="url(#panel)" stroke="#D4DDD0" />
+    <text x="840" y="160">Cypher Agent</text>
+    <text x="840" y="185" fill="#5A6B5E">Graph updates</text>
+  </g>
+  <g stroke="#8B9D83" stroke-width="2" fill="none">
+    <path d="M260 165 L320 165" />
+    <path d="M510 165 L570 165" />
+    <path d="M760 165 L820 165" />
+  </g>
+  <g>
+    <rect x="70" y="255" width="940" height="120" rx="16" fill="#FFFFFF" stroke="#D4DDD0" />
+    <text x="95" y="295" font-size="16" font-family="DM Sans, Segoe UI, Arial, sans-serif" fill="#4A5D4F">Streaming UI</text>
+    <text x="95" y="320" font-size="14" font-family="DM Sans, Segoe UI, Arial, sans-serif" fill="#5A6B5E">Live token-by-token agent output and graph build status</text>
+    <rect x="760" y="285" width="210" height="60" rx="12" fill="#FAF8F5" stroke="#D4DDD0" />
+    <text x="785" y="320" font-size="13" font-family="DM Sans, Segoe UI, Arial, sans-serif" fill="#3D8B56">Neo4j Graph Store</text>
+  </g>
+</svg>

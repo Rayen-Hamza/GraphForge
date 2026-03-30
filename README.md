@@ -1,44 +1,38 @@
 # GraphForge
 
-GraphForge is a multi-agent intelligence platform that transforms natural language intent into structured knowledge graphs. It orchestrates specialized AI agents to understand queries, research domains, extract entities, and construct rich Neo4j-based knowledge graphs in real time.
+![GraphForge banner](docs/assets/graphforge-banner.svg)
 
-## Features
+![Python](https://img.shields.io/badge/Python-3.11+-3776AB?logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white)
+![Angular](https://img.shields.io/badge/Angular-20-DD0031?logo=angular&logoColor=white)
+![Neo4j](https://img.shields.io/badge/Neo4j-008CC1?logo=neo4j&logoColor=white)
+![License](https://img.shields.io/badge/License-MIT-2f855a)
 
-- **Multi-Agent Orchestration**: Coordinated pipeline of research, extraction, validation, and construction agents
-- **Natural Language to Graph**: Describe what you want to explore in plain language — GraphForge handles the rest
-- **Real-time Streaming**: Watch agents think, decide, and build knowledge graphs live
-- **Neo4j Integration**: Direct Cypher query access for advanced graph operations
-- **Modern Angular UI**: Clean, responsive interface with chat and dashboard views
+GraphForge is a multi-agent intelligence platform that transforms natural language intent into structured knowledge graphs. It orchestrates specialized AI agents to understand queries, research domains, extract entities, and construct Neo4j-based knowledge graphs in real time.
+
+## Highlights
+
+- Multi-agent orchestration for research, extraction, validation, and construction.
+- Natural language to graph with real-time streaming updates.
+- FastAPI backend with direct Cypher integration.
+- Angular UI for live chat and graph build telemetry.
+- Sample data for a furniture product knowledge graph.
+
+## Product Preview
+
+![GraphForge UI preview](docs/assets/graphforge-ui-preview.svg)
+
+## Intent-to-Graph Pipeline
+
+![GraphForge pipeline](docs/assets/graphforge-pipeline.svg)
 
 ## Tech Stack
 
-- **Backend**: FastAPI, Google ADK, Neo4j
-- **Frontend**: Angular 20, Angular Material
-- **Database**: Neo4j
+- Backend: FastAPI, Google ADK, Neo4j
+- Frontend: Angular 20, Angular Material
+- Database: Neo4j
 
-## Project Structure
-
-```
-GraphForge/
-├── src/
-│   ├── api/                 # FastAPI backend
-│   │   ├── agents/         # ADK agents (cypher, file suggestion)
-│   │   ├── core/           # Config, logging
-│   │   ├── infra/          # Database connections
-│   │   ├── models/         # Data models
-│   │   ├── repositories/   # Data access layer
-│   │   ├── schemas/         # Pydantic schemas
-│   │   ├── services/       # Business logic
-│   │   └── main.py         # FastAPI app entry
-│   └── ui/                 # Angular frontend
-│       └── src/
-│           └── app/        # Angular components
-├── data/                    # Sample CSV data & product reviews
-├── Makefile                # Development commands
-└── README.md
-```
-
-## Getting Started
+## Quickstart
 
 ### Prerequisites
 
@@ -46,65 +40,62 @@ GraphForge/
 - Node.js 18+
 - Neo4j database (local or cloud)
 
-### Setup
+### Configure Environment
 
-1. **Clone the repository**
+Copy `src/api/.env.example` to `src/api/.env` and configure:
 
-2. **Create and configure environment**
-   
-   Copy `src/api/.env.example` to `src/api/.env` and configure:
-   ```env
-   NEO4J_URI=bolt://localhost:7687
-   NEO4J_USERNAME=neo4j
-   NEO4J_PASSWORD=your_password
-   NEO4J_DATABASE=neo4j
-   ```
+```env
+NEO4J_URI=bolt://localhost:7687
+NEO4J_USERNAME=neo4j
+NEO4J_PASSWORD=your_password
+NEO4J_DATABASE=neo4j
+```
 
-3. **Install dependencies**
+### Install Dependencies
 
-   Using Make (recommended):
-   ```bash
-   make setup
-   ```
+Using Make (recommended):
 
-   Or manually:
-   ```bash
-   # Backend
-   cd src/api
-   python -m venv .venv
-   .venv\Scripts\pip install -r requirements.txt  # Windows
-   # or source .venv/bin/activate && pip install -r requirements.txt  # Linux/Mac
+```bash
+make setup
+```
 
-   # Frontend
-   cd ../ui
-   npm install
-   ```
+Manual setup:
 
-### Running the Application
+```bash
+# Backend
+cd src/api
+python -m venv .venv
+.venv\Scripts\pip install -r requirements.txt  # Windows
+# or source .venv/bin/activate && pip install -r requirements.txt  # Linux/Mac
 
-**Backend only:**
+# Frontend
+cd ../ui
+npm install
+```
+
+### Run the Application
+
+Backend:
+
 ```bash
 make backend/run
 # or: cd src/api && python -m uvicorn src.api.main:app --reload --port 8000
 ```
 
-**Frontend only:**
+Frontend:
+
 ```bash
 make frontend/start
 # or: cd src/ui && npm start
 ```
 
-**Both:**
-```bash
-make backend/run  # in one terminal
-make frontend/start  # in another terminal
-```
+Endpoints:
 
 - Frontend: http://localhost:4200
 - Backend API: http://localhost:8000
 - API Docs: http://localhost:8000/docs
 
-## Available Make Commands
+## Available Make Targets
 
 | Command | Description |
 |---------|-------------|
@@ -117,27 +108,61 @@ make frontend/start  # in another terminal
 | `make frontend/build` | Build frontend for production |
 | `make clean` | Remove virtualenv and node_modules |
 
+## Project Structure
+
+```
+GraphForge/
+├── src/
+│   ├── api/                 # FastAPI backend
+│   │   ├── agents/         # ADK agents (cypher, file suggestion)
+│   │   ├── core/           # Config, logging
+│   │   ├── infra/          # Database connections
+│   │   ├── models/         # Data models
+│   │   ├── repositories/   # Data access layer
+│   │   ├── schemas/        # Pydantic schemas
+│   │   ├── services/       # Business logic
+│   │   └── main.py         # FastAPI app entry
+│   └── ui/                 # Angular frontend
+│       └── src/
+│           └── app/        # Angular components
+├── data/                   # Sample CSV data & product reviews
+├── docs/                   # Documentation assets
+├── Makefile                # Development commands
+└── README.md
+```
+
 ## Sample Data
 
 The `data/` directory contains CSV files for a furniture product knowledge graph:
 
-- `products.csv` - Furniture products (Stockholm Chair, Malmö Desk, etc.)
+- `products.csv` - Furniture products (Stockholm Chair, Malmo Desk, etc.)
 - `suppliers.csv` - Supplier information
 - `components.csv` - Product components
 - `assemblies.csv` - Assembly relationships
 - `part_supplier_mapping.csv` - Parts supplied by suppliers
 - `product_reviews/` - Sample product reviews
 
-## Architecture
+## Multi-Agent Architecture
 
-GraphForge uses Google's Agent Development Kit (ADK) to orchestrate multiple specialized agents:
+GraphForge uses Google ADK to orchestrate specialized agents:
 
-1. **Intent Parser** - Understands user queries
-2. **Research Agent** - Gathers domain information
-3. **Cypher Agent** - Handles Neo4j database operations
-4. **File Suggestion Agent** - Helps with data file analysis
+1. Intent parser for user queries
+2. Research agent for domain context
+3. Extraction and validation agents for entities + relations
+4. Cypher agent for Neo4j updates
+5. File suggestion agent for dataset exploration
 
-The system streams agent thinking and tool usage in real time to the Angular frontend.
+The system streams agent output to the Angular UI in real time.
+
+## Tests
+
+```bash
+pytest
+```
+
+## Related Docs
+
+- UI development notes: [src/ui/README.md](src/ui/README.md)
 
 ## License
 

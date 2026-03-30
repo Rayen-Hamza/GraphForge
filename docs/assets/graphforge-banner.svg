@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="360" viewBox="0 0 1200 360" role="img" aria-label="GraphForge banner">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#F5F1EB" />
+      <stop offset="55%" stop-color="#FAF8F5" />
+      <stop offset="100%" stop-color="#F0ECE4" />
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#4A5D4F" />
+      <stop offset="100%" stop-color="#E8734A" />
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="360" fill="url(#bg)" />
+  <g opacity="0.35" stroke="#8B9D83" stroke-width="1.5" fill="none">
+    <circle cx="170" cy="105" r="44" />
+    <circle cx="1030" cy="90" r="52" />
+    <circle cx="940" cy="270" r="36" />
+    <path d="M170 105 L280 165 L430 135 L560 210 L720 140 L860 200 L1030 90" />
+    <path d="M250 285 L360 235 L480 255 L620 200 L760 260 L920 230" />
+  </g>
+  <g>
+    <rect x="80" y="80" width="10" height="200" fill="url(#accent)" />
+    <text x="120" y="150" font-size="54" font-family="DM Sans, Segoe UI, Arial, sans-serif" fill="#1A2F1E" font-weight="700">GraphForge</text>
+    <text x="120" y="200" font-size="22" font-family="DM Sans, Segoe UI, Arial, sans-serif" fill="#5A6B5E">Multi-agent intelligence for real-time knowledge graphs</text>
+    <text x="120" y="240" font-size="16" font-family="DM Sans, Segoe UI, Arial, sans-serif" fill="#8B9D83">Natural language in, structured graph out</text>
+  </g>
+  <g>
+    <rect x="820" y="150" width="300" height="120" rx="16" fill="#FFFFFF" stroke="#D4DDD0" />
+    <text x="845" y="190" font-size="16" font-family="DM Sans, Segoe UI, Arial, sans-serif" fill="#5A6B5E">Agents streaming</text>
+    <text x="845" y="220" font-size="14" font-family="DM Sans, Segoe UI, Arial, sans-serif" fill="#4A5D4F">Intent</text>
+    <text x="930" y="220" font-size="14" font-family="DM Sans, Segoe UI, Arial, sans-serif" fill="#3D8B56">Research</text>
+    <text x="1020" y="220" font-size="14" font-family="DM Sans, Segoe UI, Arial, sans-serif" fill="#E8734A">Cypher</text>
+    <text x="845" y="245" font-size="12" font-family="DM Sans, Segoe UI, Arial, sans-serif" fill="#8B9D83">Live graph construction in Neo4j</text>
+  </g>
+</svg>
