@@ -2,6 +2,7 @@ import { Injectable, inject, signal, computed } from '@angular/core';
 import { firstValueFrom, Subscription } from 'rxjs';
 
 import { ApiService } from './api.service';
+import { SessionService } from './session.service';
 import {
   ChatMessage,
   Conversation,
@@ -18,9 +19,10 @@ import {
 @Injectable({ providedIn: 'root' })
 export class ChatService {
   private readonly api = inject(ApiService);
+  private readonly session = inject(SessionService);
 
   // ── Public state ──
-  readonly userId = signal('default-user');
+  readonly userId = computed(() => this.session.sessionId() ?? 'demo-user');
   readonly sessionId = signal<string | null>(null);
   readonly messages = signal<ChatMessage[]>([]);
   readonly conversations = signal<Conversation[]>([]);
