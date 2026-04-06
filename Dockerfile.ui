@@ -1,0 +1,26 @@
+# ── GraphForge UI ──
+# Multi-stage: build Angular → serve with nginx
+
+FROM node:20-alpine AS build
+
+WORKDIR /app
+
+COPY src/ui/package.json src/ui/package-lock.json ./
+RUN npm ci
+
+COPY src/ui/ ./
+RUN npm run build -- --configuration production
+
+# ── Production stage ──
+FROM nginx:alpine
+
+# Copy built Angular app
+COPY --from=build /app/dist/ui/browser /usr/share/nginx/html
+
+# Copy nginx config
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+
+EXPOSE 80
+
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
+    CMD wget -q --spider http://localhost/ || exit 1
