@@ -1,11 +1,7 @@
 from google.adk.tools import ToolContext
 from typing import Dict, Any
 
-from infra.neo4j import get_graphdb
 from agents.common.tool_result import tool_success, tool_error
-
-graphdb = get_graphdb()
-
 from agents.tools.file_tools import search_file
 
 PROPOSED_CONSTRUCTION_PLAN = "proposed_construction_plan"
@@ -27,7 +23,7 @@ def propose_node_construction(approved_file: str, proposed_label: str, unique_co
     Returns:
         dict: A dictionary containing metadata about the content.
     """
-    search_results = search_file(approved_file, unique_column_name)
+    search_results = search_file(approved_file, unique_column_name, tool_context)
     if search_results["status"] == "error":
         return search_results
     if search_results["search_results"]["metadata"]["lines_found"] == 0:
@@ -78,13 +74,13 @@ def propose_relationship_construction(approved_file: str, proposed_relationship_
     Returns:
         dict: A dictionary containing metadata about the content.
     """
-    search_results = search_file(approved_file, from_node_column)
+    search_results = search_file(approved_file, from_node_column, tool_context)
     if search_results["status"] == "error":
       return search_results
     if search_results["search_results"]["metadata"]["lines_found"] == 0:
         return tool_error(f"{approved_file} does not have the from node column {from_node_column}. Check the content of the file and reconsider the relationship.")
 
-    search_results = search_file(approved_file, to_node_column)
+    search_results = search_file(approved_file, to_node_column, tool_context)
     if search_results["status"] == "error" or search_results["search_results"]["metadata"]["lines_found"] == 0:
         return tool_error(f"{approved_file} does not have the to node column {to_node_column}. Check the content of the file and reconsider the relationship.")
 

@@ -5,13 +5,11 @@ from pathlib import Path
 from google.adk.tools import ToolContext
 from typing import Dict, Any, List
 
-from infra.neo4j import get_graphdb
+from infra.neo4j_manager import get_db_or_error
 from agents.tools.cypher_tools import create_uniqueness_constraint
 from agents.common.tool_result import tool_success, tool_error
 
 logger = logging.getLogger(__name__)
-
-graphdb = get_graphdb()
 
 APPROVED_CONSTRUCTION_PLAN = "approved_construction_plan"
 
@@ -19,16 +17,35 @@ APPROVED_CONSTRUCTION_PLAN = "approved_construction_plan"
 _FALLBACK_DATA_DIR = Path(__file__).parent.parent.parent.parent.parent / "data"
 
 
-def _resolve_csv_path(source_file: str) -> Path | None:
-    """Resolve a source file name to an absolute path in the data directory."""
-    from agents.tools.cypher_tools import get_neo4j_import_dir
+def _resolve_csv_path(source_file: str, tool_context: ToolContext = None) -> Path | None:
+    """Resolve a source file name to an absolute path.
 
-    result = get_neo4j_import_dir()
+    Checks (in order):
+    1. Per-session upload directory (from tool_context state)
+    2. Neo4j import directory
+    3. Fallback data/ directory
+    """
+    # Check per-session upload dir first
+    if tool_context:
+        upload_dir = tool_context.state.get("_upload_dir")
+        if upload_dir:
+            p = Path(upload_dir) / source_file
+            if p.exists():
+                return p
+
+    # Try Neo4j import dir
+    from agents.tools.cypher_tools import get_neo4j_import_dir
+    if tool_context:
+        result = get_neo4j_import_dir(tool_context)
+    else:
+        result = {"status": "error"}
+
     if result["status"] == "success":
         p = Path(result["neo4j_import_dir"]) / source_file
         if p.exists():
             return p
 
+    # Fallback to project data/ directory
     p = _FALLBACK_DATA_DIR / source_file
     if p.exists():
         return p
@@ -36,9 +53,9 @@ def _resolve_csv_path(source_file: str) -> Path | None:
     return None
 
 
-def _read_csv(source_file: str) -> tuple[list[dict], str | None]:
+def _read_csv(source_file: str, tool_context: ToolContext = None) -> tuple[list[dict], str | None]:
     """Read a CSV file and return (rows_as_dicts, error_message)."""
-    path = _resolve_csv_path(source_file)
+    path = _resolve_csv_path(source_file, tool_context)
     if path is None:
         return [], f"CSV file not found: {source_file}"
 
@@ -59,12 +76,19 @@ def load_nodes_from_csv(
     label: str,
     unique_column_name: str,
     properties: list[str],
+    tool_context: ToolContext = None,
 ) -> Dict[str, Any]:
     """Batch loading of nodes from a CSV file using UNWIND."""
 
-    rows, err = _read_csv(source_file)
+    rows, err = _read_csv(source_file, tool_context)
     if err:
         return tool_error(err)
+
+    db, db_err, is_read_only = get_db_or_error(tool_context) if tool_context else (None, tool_error("No tool context"), False)
+    if db_err:
+        return db_err
+    if is_read_only:
+        return tool_error("Demo mode: cannot load nodes. Connect your own Neo4j instance in Settings.")
 
     all_props = list({unique_column_name} | set(properties))
     set_clauses = ", ".join(f"n.`{prop}` = row.`{prop}`" for prop in properties)
@@ -77,7 +101,7 @@ def load_nodes_from_csv(
     total_loaded = 0
     for i in range(0, len(rows), BATCH_SIZE):
         batch = [{k: r.get(k) for k in all_props} for r in rows[i:i + BATCH_SIZE]]
-        result = graphdb.send_query(query, {"rows": batch})
+        result = db.send_query(query, {"rows": batch})
         if result["status"] == "error":
             return result
         total_loaded += len(batch)
@@ -86,12 +110,13 @@ def load_nodes_from_csv(
     return tool_success("records", [{"nodes_loaded": total_loaded, "label": label}])
 
 
-def import_nodes(node_construction: dict) -> dict:
+def import_nodes(node_construction: dict, tool_context: ToolContext = None) -> dict:
     """Import nodes as defined by a node construction rule."""
 
     uniqueness_result = create_uniqueness_constraint(
         node_construction["label"],
-        node_construction["unique_column_name"]
+        node_construction["unique_column_name"],
+        tool_context,
     )
 
     if (uniqueness_result["status"] == "error"):
@@ -101,13 +126,14 @@ def import_nodes(node_construction: dict) -> dict:
         node_construction["source_file"],
         node_construction["label"],
         node_construction["unique_column_name"],
-        node_construction["properties"]
+        node_construction["properties"],
+        tool_context,
     )
 
     return load_nodes_result
 
 
-def import_relationships(relationship_construction: dict) -> Dict[str, Any]:
+def import_relationships(relationship_construction: dict, tool_context: ToolContext = None) -> Dict[str, Any]:
     """Import relationships as defined by a relationship construction rule."""
 
     from_node_column = relationship_construction["from_node_column"]
@@ -118,9 +144,15 @@ def import_relationships(relationship_construction: dict) -> Dict[str, Any]:
     properties = relationship_construction["properties"]
     source_file = relationship_construction["source_file"]
 
-    rows, err = _read_csv(source_file)
+    rows, err = _read_csv(source_file, tool_context)
     if err:
         return tool_error(err)
+
+    db, db_err, is_read_only = get_db_or_error(tool_context) if tool_context else (None, tool_error("No tool context"), False)
+    if db_err:
+        return db_err
+    if is_read_only:
+        return tool_error("Demo mode: cannot create relationships. Connect your own Neo4j instance in Settings.")
 
     needed_cols = list({from_node_column, to_node_column} | set(properties))
     set_clauses = ", ".join(f"r.`{prop}` = row.`{prop}`" for prop in properties)
@@ -136,7 +168,7 @@ def import_relationships(relationship_construction: dict) -> Dict[str, Any]:
     total_loaded = 0
     for i in range(0, len(rows), BATCH_SIZE):
         batch = [{k: r.get(k) for k in needed_cols} for r in rows[i:i + BATCH_SIZE]]
-        result = graphdb.send_query(query, {"rows": batch})
+        result = db.send_query(query, {"rows": batch})
         if result["status"] == "error":
             return result
         total_loaded += len(batch)
@@ -145,20 +177,20 @@ def import_relationships(relationship_construction: dict) -> Dict[str, Any]:
     return tool_success("records", [{"relationships_loaded": total_loaded, "type": rel_type}])
 
 
-def construct_domain_graph(construction_plan: dict) -> Dict[str, Any]:
+def construct_domain_graph(construction_plan: dict, tool_context: ToolContext = None) -> Dict[str, Any]:
     """Construct a domain graph according to a construction plan."""
 
     logger.info(f"Building domain graph from approved construction plan")
 
     node_constructions = [value for value in construction_plan.values() if value['construction_type'] == 'node']
     for node_construction in node_constructions:
-        result = import_nodes(node_construction)
+        result = import_nodes(node_construction, tool_context)
         if result["status"] == "error":
             return result
 
     relationship_constructions = [value for value in construction_plan.values() if value['construction_type'] == 'relationship']
     for relationship_construction in relationship_constructions:
-        result = import_relationships(relationship_construction)
+        result = import_relationships(relationship_construction, tool_context)
         if result["status"] == "error":
             return result
 
@@ -171,4 +203,4 @@ def build_graph_from_construction_rules(tool_context: ToolContext) -> Dict[str, 
 
     approved_construction_plan = tool_context.state[APPROVED_CONSTRUCTION_PLAN]
 
-    return construct_domain_graph(approved_construction_plan)
+    return construct_domain_graph(approved_construction_plan, tool_context)

@@ -2,10 +2,11 @@
 
 from typing import Any, Optional, Dict
 
-from infra.neo4j import get_graphdb, is_symbol
-from agents.common.tool_result import tool_success, tool_error
+from google.adk.tools import ToolContext
 
-graphdb = get_graphdb()
+from infra.neo4j import is_symbol
+from infra.neo4j_manager import get_db_or_error
+from agents.common.tool_result import tool_success, tool_error
 
 
 def _validate_symbol(value: str, kind: str) -> Optional[Dict[str, Any]]:
@@ -28,6 +29,7 @@ def _build_direction_pattern(relationship_expr: str, direction: str) -> str:
 def get_node_neighbors(
     node_label: str,
     property_filter: Dict[str, Any],
+    tool_context: ToolContext,
     relationship_type: Optional[str] = None,
     direction: str = "both",
     max_depth: int = 1,
@@ -38,6 +40,7 @@ def get_node_neighbors(
     Args:
         node_label: The label of the starting node (e.g. 'Person', 'Company').
         property_filter: Properties to identify the starting node (e.g. {"name": "Alice"}).
+        tool_context: ToolContext object.
         relationship_type: Optional relationship type to filter traversal (e.g. 'WORKS_AT'). If omitted, follows all relationship types.
         direction: Traversal direction - 'outgoing', 'incoming', or 'both' (default 'both').
         max_depth: Maximum traversal depth / number of hops (1-3, default 1).
@@ -46,6 +49,10 @@ def get_node_neighbors(
     Returns:
         A dict with status and records containing start node, relationships, and neighbor nodes.
     """
+    db, db_err, _ = get_db_or_error(tool_context)
+    if db_err:
+        return db_err
+
     err = _validate_symbol(node_label, "node label")
     if err:
         return err
@@ -78,7 +85,7 @@ def get_node_neighbors(
         f"LIMIT {limit}"
     )
 
-    results = graphdb.send_query(query, {"filter": property_filter})
+    results = db.send_query(query, {"filter": property_filter})
     return results
 
 
@@ -87,6 +94,7 @@ def find_paths_between(
     start_filter: Dict[str, Any],
     end_label: str,
     end_filter: Dict[str, Any],
+    tool_context: ToolContext,
     max_length: int = 5,
     relationship_type: Optional[str] = None,
     limit: int = 5,
@@ -98,6 +106,7 @@ def find_paths_between(
         start_filter: Properties to identify the start node (e.g. {"name": "Alice"}).
         end_label: Label of the ending node (e.g. 'Company').
         end_filter: Properties to identify the end node (e.g. {"name": "Acme"}).
+        tool_context: ToolContext object.
         max_length: Maximum path length in hops (1-6, default 5).
         relationship_type: Optional relationship type to constrain the path. If omitted, any relationship type is followed.
         limit: Maximum number of paths to return (default 5).
@@ -105,6 +114,10 @@ def find_paths_between(
     Returns:
         A dict with status and records containing the discovered paths (nodes and relationships along each path).
     """
+    db, db_err, _ = get_db_or_error(tool_context)
+    if db_err:
+        return db_err
+
     for label, kind in [(start_label, "start node label"), (end_label, "end node label")]:
         err = _validate_symbol(label, kind)
         if err:
@@ -135,12 +148,13 @@ def find_paths_between(
         f"LIMIT {limit}"
     )
 
-    results = graphdb.send_query(query, {"start_filter": start_filter, "end_filter": end_filter})
+    results = db.send_query(query, {"start_filter": start_filter, "end_filter": end_filter})
     return results
 
 
 def count_and_summarize(
     label_or_type: str,
+    tool_context: ToolContext,
     kind: str = "node",
     group_by_property: Optional[str] = None,
     limit: int = 10,
@@ -149,6 +163,7 @@ def count_and_summarize(
 
     Args:
         label_or_type: The node label (e.g. 'Person') or relationship type (e.g. 'WORKS_AT') to summarize.
+        tool_context: ToolContext object.
         kind: Whether label_or_type refers to a 'node' or 'relationship' (default 'node').
         group_by_property: Optional property to group by and show value distribution (e.g. 'department').
         limit: Maximum number of groups to return when using group_by_property (default 10).
@@ -156,6 +171,10 @@ def count_and_summarize(
     Returns:
         A dict with status and records containing total count and optionally a breakdown by property value.
     """
+    db, db_err, _ = get_db_or_error(tool_context)
+    if db_err:
+        return db_err
+
     err = _validate_symbol(label_or_type, "label or relationship type")
     if err:
         return err
@@ -190,5 +209,5 @@ def count_and_summarize(
                 f"RETURN count(n) AS total_count"
             )
 
-    results = graphdb.send_query(query)
+    results = db.send_query(query)
     return results

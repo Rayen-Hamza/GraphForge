@@ -17,12 +17,31 @@ logger = logging.getLogger(__name__)
 _FALLBACK_DATA_DIR = Path(__file__).parent.parent.parent.parent.parent / "data"
 
 
-def _get_import_dir() -> tuple[Path | None, dict | None]:
+def _get_import_dir(tool_context: ToolContext = None) -> tuple[Path | None, dict | None]:
     """Returns (import_dir, None) on success, or (None, error_dict) on failure.
-    Tries Neo4j import dir first; falls back to the project data/ directory."""
-    result = get_neo4j_import_dir()
+
+    Resolution order:
+    1. Per-session upload directory (from tool_context state)
+    2. Neo4j import directory
+    3. Fallback project data/ directory
+    """
+    # Check per-session upload dir
+    if tool_context:
+        upload_dir = tool_context.state.get("_upload_dir")
+        if upload_dir:
+            p = Path(upload_dir)
+            if p.exists():
+                return p, None
+
+    # Try Neo4j import dir
+    if tool_context:
+        result = get_neo4j_import_dir(tool_context)
+    else:
+        result = {"status": "error", "error_message": "No tool context"}
+
     if result["status"] == "success":
         return Path(result["neo4j_import_dir"]), None
+
     # Fallback: use project data/ directory
     if _FALLBACK_DATA_DIR.exists():
         logger.info(f"Neo4j import dir unavailable (Aura?); using fallback: {_FALLBACK_DATA_DIR}")
@@ -46,7 +65,7 @@ def list_import_files(tool_context: ToolContext) -> dict:
                 If 'success', includes a {ALL_AVAILABLE_FILES} key with list of file names.
                 If 'error', includes an 'error_message' key.
     """
-    import_dir, error = _get_import_dir()
+    import_dir, error = _get_import_dir(tool_context)
     if error:
         return error
 
@@ -99,7 +118,7 @@ def sample_file(file_path: str, tool_context: ToolContext) -> dict:
     Returns:
         dict: A dictionary containing metadata about the content.
     """
-    import_dir, error = _get_import_dir()
+    import_dir, error = _get_import_dir(tool_context)
     if error:
         return error
     p = import_dir / file_path
@@ -147,7 +166,7 @@ def search_csv_file(file_path: str, query: str, tool_context: ToolContext, case_
     Returns:
         dict: A dictionary with 'status' ('success' or 'error').
     """
-    import_dir, error = _get_import_dir()
+    import_dir, error = _get_import_dir(tool_context)
     if error:
         return error
     p = import_dir / file_path
@@ -211,7 +230,7 @@ def search_csv_file(file_path: str, query: str, tool_context: ToolContext, case_
 
 SEARCH_RESULTS = "search_results"
 
-def search_file(file_path: str, query: str) -> dict:
+def search_file(file_path: str, query: str, tool_context: ToolContext = None) -> dict:
     """
     Searches any text file (markdown, csv, txt) for lines containing the given query string.
     Simple grep-like functionality that works with any text file.
@@ -220,11 +239,12 @@ def search_file(file_path: str, query: str) -> dict:
     Args:
       file_path: Path to the file, relative to the Neo4j import directory.
       query: The string to search for.
+      tool_context: ToolContext object.
 
     Returns:
         dict: A dictionary with 'status' ('success' or 'error').
     """
-    import_dir, error = _get_import_dir()
+    import_dir, error = _get_import_dir(tool_context)
     if error:
         return error
     p = import_dir / file_path
@@ -290,11 +310,11 @@ async def import_markdown_file(source_file: str, label_name: str, tool_context: 
     """
     from agents.tools.cypher_tools import create_uniqueness_constraint, write_neo4j_cypher
 
-    constraint_result = await create_uniqueness_constraint(label_name, "source_file")
+    constraint_result = create_uniqueness_constraint(label_name, "source_file", tool_context)
     if constraint_result["status"] == "error":
         return constraint_result
 
-    import_dir, error = _get_import_dir()
+    import_dir, error = _get_import_dir(tool_context)
     if error:
         return error
 
@@ -315,4 +335,4 @@ async def import_markdown_file(source_file: str, label_name: str, tool_context: 
         "source_file": source_file,
         "content": content
     }
-    return await write_neo4j_cypher(query, properties)
+    return write_neo4j_cypher(query, tool_context, properties)

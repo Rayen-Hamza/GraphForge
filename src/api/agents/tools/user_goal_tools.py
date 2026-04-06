@@ -1,9 +1,6 @@
 from google.adk.tools import ToolContext
 
-from infra.neo4j import get_graphdb
 from agents.common.tool_result import tool_success, tool_error
-
-graphdb = get_graphdb()
 
 def set_user_goal(kind_of_graph: str, graph_description: str, tool_context: ToolContext):
     """Sets the user's goal, including the kind of graph and its description.
