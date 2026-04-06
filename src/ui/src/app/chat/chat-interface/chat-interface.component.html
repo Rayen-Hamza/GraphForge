@@ -40,6 +40,7 @@
             </div>
             <h3>Start a Knowledge Graph</h3>
             <p>Describe what you want to explore. GraphForge's agents will research, extract, and build a structured knowledge graph.</p>
+            <app-file-upload />
             <div class="suggestion-chips">
               @for (suggestion of suggestions; track suggestion) {
                 <button class="chip" (click)="useSuggestion(suggestion)">{{ suggestion }}</button>
@@ -251,27 +252,9 @@
           </button>
         </div>
 
-        <!-- Graph Stats -->
+        <!-- Graph Visualization -->
         <div class="panel-section">
-          <div class="panel-section-title">Knowledge Graph</div>
-          <div class="stats-grid">
-            <div class="stat-card">
-              <span class="sc-value">{{ currentGraphStats().nodes }}</span>
-              <span class="sc-label">Nodes</span>
-            </div>
-            <div class="stat-card">
-              <span class="sc-value">{{ currentGraphStats().edges }}</span>
-              <span class="sc-label">Edges</span>
-            </div>
-            <div class="stat-card">
-              <span class="sc-value">{{ currentGraphStats().clusters }}</span>
-              <span class="sc-label">Clusters</span>
-            </div>
-            <div class="stat-card">
-              <span class="sc-value">{{ currentGraphStats().confidence ?? 0 }}%</span>
-              <span class="sc-label">Confidence</span>
-            </div>
-          </div>
+          <app-graph-viewer />
         </div>
 
         <!-- Active Agent (only running) -->

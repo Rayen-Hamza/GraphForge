@@ -7,6 +7,8 @@ import { Subscription } from 'rxjs';
 import { ChatService } from '../../services/chat.service';
 import { ChatMessage, ToolInvocation, AGENT_DISPLAY_NAMES } from '../../models/chat.models';
 import { MarkdownPipe } from '../../shared/markdown.pipe';
+import { GraphViewerComponent } from '../graph-viewer/graph-viewer.component';
+import { FileUploadComponent } from '../file-upload/file-upload.component';
 
 export interface DisplayPart {
     type: 'text' | 'tools';
@@ -18,7 +20,7 @@ export interface DisplayPart {
 @Component({
     selector: 'app-chat-interface',
     standalone: true,
-    imports: [CommonModule, FormsModule, MarkdownPipe],
+    imports: [CommonModule, FormsModule, MarkdownPipe, GraphViewerComponent, FileUploadComponent],
     templateUrl: './chat-interface.component.html',
     styleUrls: ['./chat-interface.component.css'],
 })
