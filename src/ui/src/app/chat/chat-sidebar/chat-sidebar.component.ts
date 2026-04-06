@@ -4,11 +4,12 @@ import { RouterModule, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 
 import { ChatService } from '../../services/chat.service';
+import { Neo4jConnectComponent } from '../../settings/neo4j-connect.component';
 
 @Component({
     selector: 'app-chat-sidebar',
     standalone: true,
-    imports: [CommonModule, RouterModule, FormsModule],
+    imports: [CommonModule, RouterModule, FormsModule, Neo4jConnectComponent],
     templateUrl: './chat-sidebar.component.html',
     styleUrls: ['./chat-sidebar.component.css'],
 })
