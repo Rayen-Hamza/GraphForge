@@ -2,10 +2,12 @@ import asyncio
 import json
 import uuid
 import logging
+from typing import Optional
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Header
 from fastapi.responses import StreamingResponse
 
+from core.session import get_session
 from services.runner import create_session, run_agent_stream, get_session_state, get_session_events, list_sessions
 from schemas.agent import (
     CreateSessionRequest,
@@ -23,23 +25,44 @@ HEARTBEAT_INTERVAL_S = 15
 router = APIRouter(prefix="/chat", tags=["chat"])
 
 
+async def _get_user_id(x_session_id: Optional[str] = None) -> str:
+    """Resolve user_id from the X-Session-ID header, falling back to 'demo-user'."""
+    if x_session_id:
+        session = await get_session(x_session_id)
+        if session:
+            return x_session_id  # Use session_id as user_id for ADK sessions
+    return "demo-user"
+
+
 @router.get("/sessions", response_model=ListSessionsResponse)
-async def get_sessions(user_id: str):
-    """List all sessions for a given user."""
-    sessions = await list_sessions(user_id)
+async def get_sessions(
+    user_id: Optional[str] = None,
+    x_session_id: Optional[str] = Header(default=None),
+):
+    """List all sessions for the current user."""
+    uid = user_id or await _get_user_id(x_session_id)
+    sessions = await list_sessions(uid)
     return ListSessionsResponse(sessions=sessions)
 
 
 @router.post("/sessions", response_model=CreateSessionResponse)
-async def post_session(req: CreateSessionRequest):
+async def post_session(
+    req: CreateSessionRequest,
+    x_session_id: Optional[str] = Header(default=None),
+):
     """Create a new agent session. Returns the session_id."""
     session_id = req.session_id or str(uuid.uuid4())
-    await create_session(req.user_id, session_id, req.initial_state)
+    user_id = req.user_id or await _get_user_id(x_session_id)
+    await create_session(user_id, session_id, req.initial_state)
     return CreateSessionResponse(session_id=session_id)
 
 
 @router.post("/sessions/{session_id}/run")
-async def run_session(session_id: str, req: RunAgentRequest):
+async def run_session(
+    session_id: str,
+    req: RunAgentRequest,
+    x_session_id: Optional[str] = Header(default=None),
+):
     """Run the agent for a given message and stream events via SSE.
 
     Events are full ADK Event objects serialised as JSON (camelCase keys,
@@ -48,6 +71,8 @@ async def run_session(session_id: str, req: RunAgentRequest):
     A heartbeat comment is sent every 15 s of inactivity to keep the
     connection alive through proxies and prevent browser timeouts.
     """
+    user_id = req.user_id or await _get_user_id(x_session_id)
+
     async def event_generator():
         queue: asyncio.Queue = asyncio.Queue()
 
@@ -55,7 +80,7 @@ async def run_session(session_id: str, req: RunAgentRequest):
             """Run the agent stream in a background task, forwarding events."""
             try:
                 async for event in run_agent_stream(
-                    session_id, req.user_id, req.message, streaming=req.streaming
+                    session_id, user_id, req.message, streaming=req.streaming
                 ):
                     await queue.put(("event", event))
             except Exception as exc:
@@ -118,14 +143,24 @@ async def run_session(session_id: str, req: RunAgentRequest):
 
 
 @router.get("/sessions/{session_id}/events", response_model=SessionEventsResponse)
-async def get_session_events_endpoint(session_id: str, user_id: str):
+async def get_session_events_endpoint(
+    session_id: str,
+    user_id: Optional[str] = None,
+    x_session_id: Optional[str] = Header(default=None),
+):
     """Return the conversation history (non-partial events) for a session."""
-    events = await get_session_events(user_id, session_id)
+    uid = user_id or await _get_user_id(x_session_id)
+    events = await get_session_events(uid, session_id)
     return SessionEventsResponse(session_id=session_id, events=events)
 
 
 @router.get("/sessions/{session_id}", response_model=SessionStateResponse)
-async def get_session(session_id: str, user_id: str):
+async def get_session_endpoint(
+    session_id: str,
+    user_id: Optional[str] = None,
+    x_session_id: Optional[str] = Header(default=None),
+):
     """Get the current state of an agent session."""
-    state = await get_session_state(user_id, session_id)
+    uid = user_id or await _get_user_id(x_session_id)
+    state = await get_session_state(uid, session_id)
     return SessionStateResponse(session_id=session_id, state=state)

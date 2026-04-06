@@ -56,12 +56,17 @@ async def shutdown_runner() -> None:
 
 
 async def create_session(user_id: str, session_id: str, initial_state: dict = {}) -> str:
-    """Create a new ADK session and return the session_id."""
+    """Create a new ADK session and return the session_id.
+
+    Injects _session_id into state so tools can resolve per-user Neo4j
+    connections and upload directories via the connection manager.
+    """
+    state = {**initial_state, "_session_id": user_id}
     await session_service.create_session(
         app_name=APP_NAME,
         user_id=user_id,
         session_id=session_id,
-        state=initial_state
+        state=state,
     )
     logger.info(f"Session created: user={user_id} session={session_id}")
     return session_id
