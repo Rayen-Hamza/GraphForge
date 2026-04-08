@@ -7,6 +7,8 @@
   <img src="https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white" alt="FastAPI" />
   <img src="https://img.shields.io/badge/Angular-20-DD0031?style=for-the-badge&logo=angular&logoColor=white" alt="Angular" />
   <img src="https://img.shields.io/badge/Neo4j-008CC1?style=for-the-badge&logo=neo4j&logoColor=white" alt="Neo4j" />
+  <img src="https://img.shields.io/badge/Redis-DC382D?style=for-the-badge&logo=redis&logoColor=white" alt="Redis" />
+  <img src="https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white" alt="Docker" />
   <img src="https://img.shields.io/badge/Google_ADK-4285F4?style=for-the-badge&logo=google&logoColor=white" alt="Google ADK" />
   <img src="https://img.shields.io/badge/License-MIT-2f855a?style=for-the-badge" alt="License" />
 </p>
@@ -16,10 +18,12 @@ GraphForge is a multi-agent intelligence platform that transforms natural langua
 ## Highlights
 
 - Multi-agent orchestration for research, extraction, validation, and construction.
-- Natural language to graph with real-time streaming updates.
-- FastAPI backend with direct Cypher integration.
-- Angular UI for live chat and graph build telemetry.
-- Sample data for a furniture product knowledge graph.
+- Natural language to graph with real-time SSE streaming.
+- BYO Neo4j -- connect your own database or use the built-in demo instance.
+- File uploads (CSV, JSON, Markdown, TXT) with drag-and-drop UI.
+- Canvas-based graph visualization with live snapshots.
+- Redis-backed session management with anonymous and configured modes.
+- One-command deployment via Docker Compose.
 
 ## Product Preview
 
@@ -65,28 +69,136 @@ GraphForge is a multi-agent intelligence platform that transforms natural langua
       <img src="https://img.shields.io/badge/Neo4j-008CC1?style=flat-square&logo=neo4j&logoColor=white" alt="Neo4j" />
     </td>
   </tr>
+  <tr>
+    <td><strong>Infrastructure</strong></td>
+    <td>
+      <img src="https://img.shields.io/badge/Redis-DC382D?style=flat-square&logo=redis&logoColor=white" alt="Redis" />
+      <img src="https://img.shields.io/badge/Docker-2496ED?style=flat-square&logo=docker&logoColor=white" alt="Docker" />
+      <img src="https://img.shields.io/badge/nginx-009639?style=flat-square&logo=nginx&logoColor=white" alt="nginx" />
+    </td>
+  </tr>
+  <tr>
+    <td><strong>Observability</strong></td>
+    <td>
+      <img src="https://img.shields.io/badge/OpenTelemetry-000000?style=flat-square&logo=opentelemetry&logoColor=white" alt="OpenTelemetry" />
+    </td>
+  </tr>
 </table>
+
+
+## Architecture
+
+```mermaid
+graph TB
+    subgraph Client["Angular UI"]
+        UI["Chat Interface<br/>Graph Viewer · File Upload"]
+    end
+
+    subgraph API["FastAPI Backend"]
+        MW["Middleware<br/>Correlation IDs · Rate Limiting"]
+        Router["REST / SSE Routers<br/>chat · sessions · files<br/>connections · graph"]
+        Runner["ADK Runner<br/>Session Management"]
+    end
+
+    subgraph Orchestrator["Multi-Agent Orchestrator · Google ADK"]
+        Root["Root Agent<br/>kg_construction_agent_v1"]
+
+        Root --> A1["User Intent Agent<br/>Parse user goals"]
+        Root --> A2["File Suggestion Agent<br/>Dataset exploration"]
+        Root --> A3["Schema Proposal Agent<br/>Design graph schema"]
+        Root --> A4["Graph Construction Agent<br/>Build knowledge graph"]
+        Root --> A5["GraphRAG Agent<br/>Multi-hop retrieval"]
+    end
+
+    subgraph Storage["Data Layer"]
+        Neo["Neo4j<br/>Knowledge Graph"]
+        Redis["Redis<br/>Session Store"]
+        Files["CSV / Uploaded Files"]
+    end
+
+    UI -- "HTTP / SSE stream" --> MW
+    MW --> Router
+    Router --> Runner
+    Router -- "session ops" --> Redis
+    Runner --> Root
+    A4 -- "Cypher queries" --> Neo
+    A5 -- "Graph traversal" --> Neo
+    A2 -- "File analysis" --> Files
+
+    style Client fill:#dd0031,color:#fff,stroke:#dd0031
+    style API fill:#009688,color:#fff,stroke:#009688
+    style Orchestrator fill:#4285f4,color:#fff,stroke:#4285f4
+    style Storage fill:#008cc1,color:#fff,stroke:#008cc1
+```
+
+### Agent Pipeline
+
+```mermaid
+flowchart LR
+    A["User Intent"] --> B["File Suggestion"] --> C["Schema Proposal"] --> D["Graph Construction"]
+    E["GraphRAG"] -.->|"query existing graph"| D
+
+    style A fill:#6366f1,color:#fff,stroke:none
+    style B fill:#8b5cf6,color:#fff,stroke:none
+    style C fill:#a855f7,color:#fff,stroke:none
+    style D fill:#c026d3,color:#fff,stroke:none
+    style E fill:#059669,color:#fff,stroke:none
+```
+
+Each agent is delegated to sequentially by the root orchestrator. The system streams agent output to the Angular UI in real time via SSE.
+
 
 ## Quickstart
 
 ### Prerequisites
 
 - Python 3.11+
-- Node.js 18+
-- Neo4j database (local or cloud)
+- Node.js 20+
+- Neo4j 5+ (local or [Aura cloud](https://neo4j.com/cloud/aura/))
+- Redis 7+
+- Docker & Docker Compose (optional -- for containerized deployment)
 
 ### Configure Environment
 
-Copy `src/api/.env.example` to `src/api/.env` and configure:
+Copy `src/api/.env.example` to `src/api/.env` and fill in your values:
 
 ```env
-NEO4J_URI=bolt://localhost:7687
-NEO4J_USERNAME=neo4j
-NEO4J_PASSWORD=your_password
-NEO4J_DATABASE=neo4j
+# LLM Provider (required)
+GEMINI_API_KEY=your-gemini-api-key
+
+# Neo4j
+NEO4J_DSN=bolt://neo4j:password@localhost:7687/neo4j
+
+# Redis (session management)
+GF_REDIS_URL=redis://localhost:6379/0
+
+# Session persistence
+GF_SESSION_DB_URL=sqlite+aiosqlite:///data/sessions.db
+
+# Application
+GF_DEBUG=false
+GF_ALLOWED_ORIGINS=["http://localhost:4200"]
+GF_UPLOAD_DIR=./uploads
+GF_MAX_UPLOAD_SIZE_MB=50
 ```
 
-### Install Dependencies
+### Quick Start with Docker Compose
+
+The fastest way to run the full stack (API + UI + Redis + Neo4j):
+
+```bash
+# Create your .env file first
+cp src/api/.env.example src/api/.env
+# Edit src/api/.env and add your GEMINI_API_KEY
+
+docker compose up --build
+```
+
+This starts all four services. The UI is available at http://localhost:4200 and the API at http://localhost:8000.
+
+> **Note:** The Docker Compose setup uses `neo4j/graphforge-dev` as the default Neo4j credentials.
+
+### Install Dependencies (manual setup)
 
 Using Make (recommended):
 
@@ -129,6 +241,8 @@ Endpoints:
 - Frontend: http://localhost:4200
 - Backend API: http://localhost:8000
 - API Docs: http://localhost:8000/docs
+- Liveness: http://localhost:8000/health
+- Readiness: http://localhost:8000/health/ready
 
 ## Available Make Targets
 
@@ -148,21 +262,43 @@ Endpoints:
 ```
 GraphForge/
 ├── src/
-│   ├── api/                 # FastAPI backend
-│   │   ├── agents/         # ADK agents (cypher, file suggestion)
-│   │   ├── core/           # Config, logging
-│   │   ├── infra/          # Database connections
-│   │   ├── models/         # Data models
-│   │   ├── repositories/   # Data access layer
-│   │   ├── schemas/        # Pydantic schemas
-│   │   ├── services/       # Business logic
-│   │   └── main.py         # FastAPI app entry
-│   └── ui/                 # Angular frontend
-│       └── src/
-│           └── app/        # Angular components
-├── data/                   # Sample CSV data & product reviews
-├── docs/                   # Documentation assets
-├── Makefile                # Development commands
+│   ├── api/                        # FastAPI backend
+│   │   ├── agents/                # ADK agents
+│   │   │   ├── multi_agent/       # Root orchestrator
+│   │   │   ├── user_intent_agent/
+│   │   │   ├── file_suggestion_agent/
+│   │   │   ├── schema_proposal_agent/
+│   │   │   ├── graph_construction_agent/
+│   │   │   ├── graphrag_agent/
+│   │   │   ├── tools/             # Shared agent tools
+│   │   │   └── common/            # LLM config, tool results
+│   │   ├── core/                  # Config, sessions, middleware, telemetry
+│   │   ├── infra/                 # Neo4j driver & connection manager
+│   │   ├── routers/               # API route handlers
+│   │   │   ├── chat.py            # Agent SSE streaming
+│   │   │   ├── sessions.py        # Session lifecycle
+│   │   │   ├── files.py           # File upload
+│   │   │   ├── connections.py     # BYO Neo4j connections
+│   │   │   └── graph.py           # Graph visualization
+│   │   ├── models/                # Data models
+│   │   ├── schemas/               # Pydantic schemas
+│   │   ├── services/              # Business logic, ADK runner
+│   │   └── main.py                # FastAPI app entry
+│   └── ui/                        # Angular frontend
+│       └── src/app/
+│           ├── chat/              # Chat interface, file upload, graph viewer
+│           ├── dashboard/         # Pipeline telemetry
+│           ├── settings/          # Neo4j connection settings
+│           ├── landing/           # Landing page
+│           └── services/          # API services
+├── tests/                         # pytest test suite
+├── data/                          # Sample CSV data & product reviews
+├── docs/                          # Documentation assets
+├── Dockerfile                     # API container (Python 3.11)
+├── Dockerfile.ui                  # UI container (Node 20 → nginx)
+├── docker-compose.yml             # Full stack orchestration
+├── nginx.conf                     # Reverse proxy with SSE support
+├── Makefile                       # Development commands
 └── README.md
 ```
 
@@ -177,72 +313,65 @@ The `data/` directory contains CSV files for a furniture product knowledge graph
 - `part_supplier_mapping.csv` - Parts supplied by suppliers
 - `product_reviews/` - Sample product reviews
 
-## Architecture
 
-```mermaid
-graph TB
-    subgraph Client["Angular UI"]
-        UI["Chat Interface<br/>Graph Telemetry"]
-    end
+## API Endpoints
 
-    subgraph API["FastAPI Backend"]
-        Router["REST / SSE Router<br/>/api/v1/agents"]
-        Runner["ADK Runner<br/>Session Management"]
-    end
+All endpoints are prefixed with `/api/v1` unless noted.
 
-    subgraph Orchestrator["Multi-Agent Orchestrator · Google ADK"]
-        Root["Root Agent<br/>kg_construction_agent_v1"]
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/health` | GET | Liveness probe |
+| `/health/ready` | GET | Readiness probe (checks Redis) |
+| `/api/v1/sessions/init` | POST | Create anonymous session |
+| `/api/v1/sessions/me` | GET | Get session info |
+| `/api/v1/chat/sessions` | GET / POST | List or create agent sessions |
+| `/api/v1/chat/sessions/{id}/run` | POST | Run agent with SSE streaming |
+| `/api/v1/chat/sessions/{id}/events` | GET | Get conversation history |
+| `/api/v1/chat/sessions/{id}` | GET | Get session state |
+| `/api/v1/files/upload` | POST | Upload file (CSV, JSON, MD, TXT) |
+| `/api/v1/files` | GET | List available files |
+| `/api/v1/files/{filename}` | DELETE | Delete file |
+| `/api/v1/connections/neo4j/test` | POST | Test Neo4j connection |
+| `/api/v1/connections/neo4j` | POST / DELETE | Save or remove BYO connection |
+| `/api/v1/connections/neo4j/status` | GET | Get connection status |
+| `/api/v1/graph/snapshot` | GET | Graph visualization data |
 
-        Root --> A1["User Intent Agent<br/>Parse user goals"]
-        Root --> A2["File Suggestion Agent<br/>Dataset exploration"]
-        Root --> A3["Schema Proposal Agent<br/>Design graph schema"]
-        Root --> A4["Graph Construction Agent<br/>Build knowledge graph"]
-        Root --> A5["GraphRAG Agent<br/>Multi-hop retrieval"]
-    end
+Full interactive docs at [localhost:8000/docs](http://localhost:8000/docs) (Swagger) or [localhost:8000/redoc](http://localhost:8000/redoc) (ReDoc).
 
-    subgraph Storage["Data Layer"]
-        Neo["Neo4j<br/>Knowledge Graph"]
-        Files["CSV / Data Files"]
-    end
+## Deployment
 
-    UI -- "HTTP / SSE stream" --> Router
-    Router --> Runner
-    Runner --> Root
-    A4 -- "Cypher queries" --> Neo
-    A5 -- "Graph traversal" --> Neo
-    A2 -- "File analysis" --> Files
+### Docker Compose (recommended)
 
-    style Client fill:#dd0031,color:#fff,stroke:#dd0031
-    style API fill:#009688,color:#fff,stroke:#009688
-    style Orchestrator fill:#4285f4,color:#fff,stroke:#4285f4
-    style Storage fill:#008cc1,color:#fff,stroke:#008cc1
+```bash
+docker compose up -d --build
 ```
 
-### Agent Pipeline
+| Service | Port | Image |
+|---------|------|-------|
+| API | 8000 | Python 3.11 / Uvicorn |
+| UI | 4200 → 80 | nginx (Angular build) |
+| Redis | 6379 | redis:7-alpine |
+| Neo4j | 7474, 7687 | neo4j:5-community |
 
-```mermaid
-flowchart LR
-    A["User Intent"] --> B["File Suggestion"] --> C["Schema Proposal"] --> D["Graph Construction"]
-    E["GraphRAG"] -.->|"query existing graph"| D
+The nginx reverse proxy handles SPA routing, API proxying, and SSE buffering. The API container includes a health check at `/health`.
 
-    style A fill:#6366f1,color:#fff,stroke:none
-    style B fill:#8b5cf6,color:#fff,stroke:none
-    style C fill:#a855f7,color:#fff,stroke:none
-    style D fill:#c026d3,color:#fff,stroke:none
-    style E fill:#059669,color:#fff,stroke:none
-```
+### Vercel (frontend only)
 
-Each agent is delegated to sequentially by the root orchestrator. The system streams agent output to the Angular UI in real time via SSE.
+The Angular UI can be deployed to Vercel. A `vercel.json` is included in `src/ui/` with SPA rewrites and API proxy rules. Set the `API_URL` environment variable in your Vercel project to point to your deployed API.
 
 ## Tests
 
 ```bash
-pytest
+pytest tests/
 ```
+
+Test coverage includes agent orchestration, API endpoints, Cypher tool execution, knowledge graph construction, multi-agent coordination, and Neo4j integration.
 
 ## Related Docs
 
 - UI development notes: [src/ui/README.md](src/ui/README.md)
+- API interactive docs: http://localhost:8000/docs
+- Environment reference: [src/api/.env.example](src/api/.env.example)
 
 ## License
 
