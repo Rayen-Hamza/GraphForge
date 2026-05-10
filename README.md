@@ -15,6 +15,10 @@
 
 GraphForge is a multi-agent intelligence platform that transforms natural language intent into structured knowledge graphs. It orchestrates specialized AI agents to understand queries, research domains, extract entities, and construct Neo4j-based knowledge graphs in real time.
 
+## Product Preview
+
+![GraphForge UI preview](docs/assets/landing%20page.png)
+
 ## Highlights
 
 - Multi-agent orchestration for research, extraction, validation, and construction.
@@ -25,9 +29,6 @@ GraphForge is a multi-agent intelligence platform that transforms natural langua
 - Redis-backed session management with anonymous and configured modes.
 - One-command deployment via Docker Compose.
 
-## Product Preview
-
-![GraphForge UI preview](docs/assets/graphforge-ui-preview.svg)
 
 ## Intent-to-Graph Pipeline
 
